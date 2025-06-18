@@ -18,8 +18,8 @@ class Cube:
         Lbox: float = 10000.0, # in m
         partype: str = 'jaxshard',
         grid_wsp: type[GridWorkspace] = None,
-        field_name: str = 'pwv',
-        field_unit: str = 'mm',
+        field_name: str = 'water mass density',
+        field_unit: str = 'g m^-3',
         pspec: dict = {},
         rescale: dict = {},
         seed: int = 123456789,
