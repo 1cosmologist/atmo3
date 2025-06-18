@@ -50,3 +50,6 @@ class Atmosphere:
         else:
             for component in self.components.values():
                 component.generate_field_realization(time_step=time_step)
+                
+    def compute_emission(self):
+        pass

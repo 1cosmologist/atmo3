@@ -89,7 +89,6 @@ class Cube:
         self._noise2field()
         self._rescale_field()
         
-    def compute_emission(self):
-        pass
+    
         
         
