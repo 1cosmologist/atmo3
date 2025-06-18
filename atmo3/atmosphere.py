@@ -1,5 +1,5 @@
-import cube
-import atmo3.grid_utils as ffu
+from . import cube
+from . import grid_utils as gutl
 
 class Atmosphere:
     
@@ -10,7 +10,7 @@ class Atmosphere:
         
         self.N               = nside_grid
         self.Lbox            = box_length_in_m
-        self.fft_wsp         = ffu.FFT_spec(N=self.N, Lbox=self.Lbox)
+        self.grid_wsp        = gutl.GridWorkspace(N=self.N, Lbox=self.Lbox)
         self.component_names = []
         self.components      = {}
         
@@ -29,8 +29,7 @@ class Atmosphere:
         self.components[field_name] = cube.Cube(
             N=self.N,
             Lbox=self.Lbox,
-            partype='jaxshard',
-            fft_wsp=self.fft_wsp,
+            grid_wsp=self.grid_wsp,
             field_name=field_name,
             field_unit=field_unit,
             pspec=pspec,
