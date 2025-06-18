@@ -1,0 +1,21 @@
+[build-system]
+build-backend = 'mesonpy'
+requires = ['meson-python']
+
+[project]
+name = 'atmo3'
+version = '0.0.1.a1'
+description = 'Atmo(sphere) cube - a simulation cube for atmospheric emissions in the microwave'
+readme = 'README.md'
+requires-python = '>=3.12'
+dependencies = [
+    "numpy",
+    "jax",
+]
+license = {file = 'LICENSE.txt'}
+authors = [
+  {name = 'Shamik Ghosh', email = 'shamik@lbl.gov'},
+  {name = 'Timothée Tollet', email = 'tollet@apc.in2p3.fr'},
+  {name = 'Jacques Delabrouille', email = 'jdelabrouille@lbl.gov'},
+  {name = ' Michel Piat', email = 'piat@apc.in2p3.fr'}
+]

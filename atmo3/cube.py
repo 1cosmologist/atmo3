@@ -5,78 +5,39 @@ import gc
 
 from . import parallel_rng as rng
 from . import multihost_fft as mfft
+from .grid_utils import GridWorkspace
 
 import jax.numpy as jnp 
 import jax.random as rnd
 
 class Cube:
-    '''Cube'''
-    def __init__(self, **kwargs):
+    '''A class to generate a 3D field realization of a physical variable given a power spectrum.'''
+    def __init__(
+        self, 
+        N: int = 128,
+        Lbox: float = 10000.0, # in m
+        partype: str = 'jaxshard',
+        grid_wsp: type[GridWorkspace] = None,
+        field_name: str = 'pwv',
+        field_unit: str = 'mm',
+        pspec: dict = {},
+        rescale: dict = {},
+        seed: int = 123456789,
+        nsub: int = 1024**3,
+    ) -> None:
 
-        self.N          = kwargs.get('N', 128)
-        self.Lbox       = kwargs.get('Lbox',10000.0) # in m
-        self.partype    = kwargs.get('partype','jaxshard')
-        self.field_name = kwargs.get('field_name','pwv')
-        self.field_unit = kwargs.get('field_unit','mm')
-        self.pspec      = kwargs.get('pspec',{})
+        self.N          = N
+        self.Lbox       = Lbox # in m
+        self.partype    = partype
+        self.grid_wsp   = grid_wsp
+        self.field_name = field_name
+        self.field_unit = field_unit
+        self.pspec      = pspec
+        self.rescale    = rescale
+        self.seed       = seed
+        self.nsub       = nsub
         
-        self.seed            = kwargs.get('seed', 123456789)
-        self.nsub            = kwargs.get('nsub', 1024**3)
-
-        self.dk  = 2*jnp.pi/self.Lbox
-        self.d3k = self.dk * self.dk * self.dk
-
-        self.rshape       = (self.N,self.N,self.N)
-        self.cshape       = (self.N,self.N,self.N//2+1)
-        self.rshape_local = (self.N,self.N,self.N)
-        self.cshape_local = (self.N,self.N,self.N//2+1)
-
-        self.start = 0
-        self.end   = self.N
-        
-        self.field = None
-
-        # needed for running on CPU with a signle process
-        self.ngpus   = 1        
-        self.host_id = 0
-
-        if self.partype == 'jaxshard':
-            self.ngpus   = jax.device_count()
-            self.host_id = jax.process_index()
-            self.start   = self.host_id * self.N // self.ngpus
-            self.end     = (self.host_id + 1) * self.N // self.ngpus
-            self.rshape_local = (self.N, self.N // self.ngpus, self.N)
-            self.cshape_local = (self.N, self.N // self.ngpus, self.N // 2 + 1)
-            
         self.rng_stream = rng.Parallel_rng(seedkey=self.seed,nsub=self.nsub)
-
-    def k_axis(self, r=False, slab_axis=False):
-        if r: 
-            k_i = (jnp.fft.rfftfreq(self.N) * self.dk * self.N).astype(jnp.float32)
-        else:
-            k_i = (jnp.fft.fftfreq(self.N) * self.dk * self.N).astype(jnp.float32)
-        if slab_axis: return (k_i[self.start:self.end]).astype(jnp.float32)
-        return k_i
-    
-    def k_square(self, kx, ky, kz):
-        kxa,kya,kza = jnp.meshgrid(kx,ky,kz,indexing='ij')
-        del kx, ky, kz ; gc.collect()
-
-        k2 = (kxa**2+kya**2+kza**2).astype(jnp.float32)
-        del kxa, kya, kza ; gc.collect()
-
-        return k2
-    
-    def interp2kgrid(self, k_1d, f_1d):
-        kx = self.k_axis()
-        ky = self.k_axis(slab_axis=True)
-        kz = self.k_axis(r=True)
-
-        interp_fcn = jnp.sqrt(self.k_square(kx, ky, kz)).ravel()
-        del kx, ky, kz ; gc.collect()
-
-        interp_fcn = jnp.interp(interp_fcn, k_1d, f_1d, left='extrapolate', right='extrapolate')
-        return jnp.reshape(interp_fcn, self.cshape_local).astype(jnp.float32)
 
     def _generate_sharded_noise(self, N):           
         start   = self.start
@@ -93,7 +54,7 @@ class Cube:
         return jnp.transpose(noise,(1,0,2))
 
     def _apply_grid_transfer_function(self, field, transfer_data):
-        transfer_cdm = self.interp2kgrid(transfer_data[0], transfer_data[1])
+        transfer_cdm = self.grid_wsp.interp2kgrid(transfer_data[0], transfer_data[1])
         del transfer_data ; gc.collect()
 
         return field*transfer_cdm
@@ -117,8 +78,18 @@ class Cube:
         self.field = mfft.fft(
                     self._apply_grid_transfer_function(mfft.fft(self.field), transfer),
                     direction='c2r')
+        
+    def _rescale_field(self):
+        rescale_interp = self.interp2grid(self.rescale['h'], self.rescale['f'])
+        self.field *= rescale_interp
 
-    def generate_field_realization(self, time_step = 0):
+    def generate_field_realization(self, time_step=0):
         self.rng_stream.set_seedkey(time_step)
         self._generate_noise()
         self._noise2field()
+        self._rescale_field()
+        
+    def compute_emission(self):
+        pass
+        
+        
