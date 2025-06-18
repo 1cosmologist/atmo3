@@ -26,6 +26,32 @@ class Cube:
         nsub: int = 1024**3,
     ) -> None:
 
+        """
+        Initialize the cube object.
+
+        Parameters
+        ----------
+        N : int, optional
+            Number of cells per side of the grid. Defaults to 128.
+        Lbox : float, optional
+            Box length in meters. Defaults to 10000.0.
+        partition : str, optional
+            Partition type. Defaults to 'jaxshard'.
+        grid_wsp : GridWorkspace, optional
+            Grid workspace object. Defaults to None.
+        field_name : str, optional
+            Name of the physical variable. Defaults to 'water mass density'.
+        field_unit : str, optional
+            Unit of the physical variable. Defaults to 'g m^-3'.
+        pspec : dict, optional
+            Power spectrum of the physical variable. Defaults to an empty dictionary.
+        rescale : dict, optional
+            Rescaling factors as a function of height. Defaults to an empty dictionary.
+        seed : int, optional
+            Random seed. Defaults to 123456789.
+        nsub : int, optional
+            Number of subsamples for random number generation. Defaults to 1024**3.
+        """
         self.N          = N
         self.Lbox       = Lbox # in m
         self.grid_wsp   = grid_wsp
@@ -83,11 +109,21 @@ class Cube:
         self.field *= rescale_interp
 
     def generate_field_realization(self, time_step=0):
+        """
+        Generate a field realization for the Cube instance at a specified time step.
+
+        This method updates the random number generator seed based on the provided
+        time step and generates a 3D field realization of a physical variable using
+        the power spectrum, noise generation, and rescaling factors defined for the
+        Cube instance.
+
+        Parameters
+        ----------
+        time_step : int, optional
+            The time step for which the field realization is generated. Defaults to 0.
+        """
+
         self.rng_stream.set_seedkey(time_step)
         self._generate_noise()
         self._noise2field()
-        self._rescale_field()
-        
-    
-        
-        
+        self._rescale_field()       

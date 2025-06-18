@@ -6,6 +6,53 @@ import gc
 class GridWorkspace:
    
     def __init__(self, N, Lbox, partition='jaxshard'):
+        """
+        Initialize the grid workspace object.
+
+        Parameters
+        ----------
+        N : int
+            Number of cells per side of the grid.
+        Lbox : float
+            Box length in meters.
+        partition : str, optional
+            Type of partitioning. Defaults to 'jaxshard'.
+
+        Attributes
+        ----------
+        N : int
+            Number of cells per side of the grid.
+        Lbox : float
+            Box length in meters.
+        dk : float
+            Grid spacing in k-space.
+        d3k : float
+            Grid spacing in k-space cubed.
+        rshape : tuple
+            Shape of a real-space array.
+        cshape : tuple
+            Shape of a complex-space array.
+        rshape_local : tuple
+            Shape of a local real-space array.
+        cshape_local : tuple
+            Shape of a local complex-space array.
+        start : int
+            Starting index of the local array.
+        end : int
+            Ending index of the local array.
+        grid_spacing : float
+            Grid spacing in real-space.
+        field : None
+            Placeholder for the field array.
+        ngpus : int
+            Number of GPUs.
+        host_id : int
+            Host ID.
+        parttype : str
+            Type of partitioning.
+        partaxis : int
+            Axis to partition the array.
+        """
         self.N      = N
         self.Lbox   = Lbox
 

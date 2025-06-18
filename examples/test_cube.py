@@ -12,7 +12,9 @@ variable_unit = 'g m^-3'
 
 print(f"Creating power spectrum for {physical_variable} normalized to 1.")
 k_array     = np.arange(nside_grid) * atmo.grid_wsp.dk
-pofk_array  = ((200.0)**-2. + k_array**2 )**-(11/6)
+# Based on the Kolmogorov spectrum, we can define a power spectrum based on values from Morris et al. (2025) (arxiv:2410.13064)
+k0          = 2*np.pi / 200.0
+pofk_array  = ((k0)**-2. + k_array**2 )**-(11/6)
 pofk_array  /= np.trapezoid(pofk_array, k_array)  # Normalize the power spectrum
 pspec = {'k': k_array, 'pofk': pofk_array}
 
