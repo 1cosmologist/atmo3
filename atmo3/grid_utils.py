@@ -5,7 +5,7 @@ import gc
 
 class GridWorkspace:
    
-    def __init__(self, N, Lbox):
+    def __init__(self, N, Lbox, partition='jaxshard'):
         self.N      = N
         self.Lbox   = Lbox
 
@@ -28,7 +28,9 @@ class GridWorkspace:
         self.ngpus   = 1        
         self.host_id = 0
 
-        if self.partype == 'jaxshard':
+        self.parttype = partition
+
+        if self.parttype == 'jaxshard':
             self.ngpus   = jax.device_count()
             self.host_id = jax.process_index()
             self.start   = self.host_id * self.N // self.ngpus
