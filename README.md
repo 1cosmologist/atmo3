@@ -13,3 +13,5 @@ Atmo(sphere) cube - a simulation cube for atmospheric emissions in the microwave
 4. Install: `pip install .`
 
 
+### Testing
+`python ./examples/test_cube.py`
