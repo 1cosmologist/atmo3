@@ -68,13 +68,13 @@ class Cube:
         start   = self.grid_wsp.start
         end     = self.grid_wsp.end
 
-        noise = self.rng_stream.generate(start=start*N**2,size=(end-start)*N**2).astype(jnp.float32)
+        noise = self.rng_stream.generate(start=start*N**2,size=(end-start)*N**2)#.astype(jnp.float32)
         noise = jnp.reshape(noise,(end-start,N,N))
         return jnp.transpose(noise,(1,0,2)) 
 
     def _generate_serial_noise(self, N):
         
-        noise = self.rng_stream.generate(start=0,size=N**3).astype(jnp.float32)
+        noise = self.rng_stream.generate(start=0,size=N**3)#.astype(jnp.float32)
         noise = jnp.reshape(noise,(N,N,N))
         return jnp.transpose(noise,(1,0,2))
 

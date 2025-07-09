@@ -90,17 +90,17 @@ class GridWorkspace:
             
     def k_axis(self, r=False, slab_axis=False):
         if r: 
-            k_i = (jnp.fft.rfftfreq(self.N) * self.dk * self.N).astype(jnp.float32)
+            k_i = (jnp.fft.rfftfreq(self.N) * self.dk * self.N)#.astype(jnp.float32)
         else:
-            k_i = (jnp.fft.fftfreq(self.N) * self.dk * self.N).astype(jnp.float32)
-        if slab_axis: return (k_i[self.start:self.end]).astype(jnp.float32)
+            k_i = (jnp.fft.fftfreq(self.N) * self.dk * self.N)#.astype(jnp.float32)
+        if slab_axis: return (k_i[self.start:self.end])#.astype(jnp.float32)
         return k_i
     
     def k_square(self, kx, ky, kz):
         kxa,kya,kza = jnp.meshgrid(kx,ky,kz,indexing='ij')
         del kx, ky, kz ; gc.collect()
 
-        k2 = (kxa**2+kya**2+kza**2).astype(jnp.float32)
+        k2 = (kxa**2+kya**2+kza**2)#.astype(jnp.float32)
         del kxa, kya, kza ; gc.collect()
 
         return k2
@@ -114,10 +114,10 @@ class GridWorkspace:
         del kx, ky, kz ; gc.collect()
 
         interp_fcn = jnp.interp(interp_fcn, k_1d, f_1d, left=0., right='extrapolate')
-        return jnp.reshape(interp_fcn, self.cshape_local).astype(jnp.float32)
+        return jnp.reshape(interp_fcn, self.cshape_local)#.astype(jnp.float32)
     
     def grid_axis(self, slab_axis=False):
-        x_i = (jnp.arange(self.N) * self.grid_spacing).astype(jnp.float32)
+        x_i = (jnp.arange(self.N) * self.grid_spacing)#.astype(jnp.float32)
         
         if slab_axis: return x_i[self.start:self.end]
         return x_i
@@ -133,4 +133,4 @@ class GridWorkspace:
 
         zz = zz.ravel()
         interp_fcn = jnp.interp(zz, x_1d, f_1d, left='extrapolate', right='extrapolate')
-        return jnp.reshape(interp_fcn, self.rshape_local).astype(jnp.float32)
+        return jnp.reshape(interp_fcn, self.rshape_local)#.astype(jnp.float32)

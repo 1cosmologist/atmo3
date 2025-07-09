@@ -1,6 +1,6 @@
 project(
     'atmo3',
-    version: '0.0.1.a1',
+    version: '0.0.1.a2',
     meson_version: '>=0.63.0',
     default_options: [
       # The default can yield broken results.
@@ -45,6 +45,7 @@ py_sources = [
     'atmo3/grid_utils.py',
     'atmo3/multihost_fft.py',
     'atmo3/parallel_rng.py',
+    'atmo3/power.py',
 ]
 
 py3.install_sources(py_sources,
