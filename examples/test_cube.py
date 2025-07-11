@@ -17,7 +17,7 @@ print(f"Creating power spectrum for {physical_variable} normalized to 1.")
 k_array     = np.arange(nside_grid) * atmo.grid_wsp.dk
 # Based on the Kolmogorov spectrum, we can define a power spectrum based on values from Morris et al. (2025) (arxiv:2410.13064)
 k0          = 2*np.pi / 200.0
-pofk_array  = ((k0)**2. + k_array**2 )**-(11/6)
+pofk_array  = (k0**2. + k_array**2 )**-(11/6)
 # pofk_array  /= np.trapezoid(pofk_array, k_array)  # Normalize the power spectrum
 pofk_array /= np.max(pofk_array)  # Normalize the power spectrum to 1
 pspec = {'k': k_array, 'pofk': pofk_array}
@@ -74,9 +74,14 @@ plt.ylabel('y (m)')
 plt.savefig('./examples/field_xy_plane.png', bbox_inches='tight')
 plt.close()
 
+print(f"Mean of fluctuations: {atmo.components[physical_variable].field.mean()}")
+print(f"Standard deviation of fluctuations: {atmo.components[physical_variable].field.std()}")
 
 print("Computing power spectrum...")
 kbins, Pk_bins = a3.compute_power_spectrum(atmo.components[physical_variable], nbins=10)
+
+print(f"Smallest k bin: {kbins[0]} m^-1, corresponding to a scale of {2*np.pi/kbins[0]} m")
+print(f"Largest k bin: {kbins[-1]} m^-1, corresponding to a scale of {2*np.pi/kbins[-1]} m")
 
 plt.plot(pspec['k'], pspec['pofk'], label='Input Power Spectrum')
 plt.plot(kbins, Pk_bins, 's', label='Computed Power Spectrum') 

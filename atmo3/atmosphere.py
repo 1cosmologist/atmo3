@@ -5,7 +5,8 @@ class Atmosphere:
     
     def __init__(self, 
                  nside_grid: int = 128, 
-                 box_length_in_m: float = 10000.0
+                 box_length_in_m: float = 10000.0,
+                 site_altitude: float = 0.0
     ) -> None:
         
         """
@@ -33,7 +34,12 @@ class Atmosphere:
         """
         self.N               = nside_grid
         self.Lbox            = box_length_in_m
-        self.grid_wsp        = gutl.GridWorkspace(N=self.N, Lbox=self.Lbox)
+        self.site_altitude   = site_altitude
+        self.grid_wsp        = gutl.GridWorkspace(
+                                                N=self.N, 
+                                                Lbox=self.Lbox, 
+                                                site_altitude=self.site_altitude
+                                                )
         self.component_names = []
         self.components      = {}
         

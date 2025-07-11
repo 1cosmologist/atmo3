@@ -5,7 +5,7 @@ import gc
 
 class GridWorkspace:
    
-    def __init__(self, N, Lbox, partition='jaxshard'):
+    def __init__(self, N, Lbox, site_altitude=0.0, partition='jaxshard'):
         """
         Initialize the grid workspace object.
 
@@ -55,6 +55,7 @@ class GridWorkspace:
         """
         self.N      = N
         self.Lbox   = Lbox
+        self.site_altitude = site_altitude  # Default altitude, can be set later if needed
 
         self.dk      = 2*jnp.pi/self.Lbox
         self.d3k     = self.dk * self.dk * self.dk
@@ -116,21 +117,24 @@ class GridWorkspace:
         interp_fcn = jnp.interp(interp_fcn, k_1d, f_1d, left=0., right='extrapolate')
         return jnp.reshape(interp_fcn, self.cshape_local)#.astype(jnp.float32)
     
-    def grid_axis(self, slab_axis=False):
+    def grid_axis(self, slab_axis=False, altitude_axis=False):
         x_i = (jnp.arange(self.N) * self.grid_spacing)#.astype(jnp.float32)
         
+        if altitude_axis:
+            x_i = x_i + self.site_altitude
+            
         if slab_axis: return x_i[self.start:self.end]
         return x_i
     
     def interp2grid(self, x_1d, f_1d):
         x = self.grid_axis()
         y = self.grid_axis(slab_axis=True)
-        z = self.grid_axis()
-        
+        z = self.grid_axis(altitude_axis=True)
+
         xx, yy, zz = jnp.meshgrid(x,y,z, indexing='ij')
 
         del x, y, z, xx, yy; gc.collect()
 
         zz = zz.ravel()
-        interp_fcn = jnp.interp(zz, x_1d, f_1d, left='extrapolate', right='extrapolate')
+        interp_fcn = jnp.interp(zz, x_1d, f_1d, left=0., right='extrapolate')
         return jnp.reshape(interp_fcn, self.rshape_local)#.astype(jnp.float32)

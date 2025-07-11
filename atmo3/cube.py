@@ -18,8 +18,8 @@ class Cube:
         Lbox: float = 10000.0, # in m
         partition: str = 'jaxshard',
         grid_wsp: type[GridWorkspace] = None,
-        field_name: str = 'water mass density',
-        field_unit: str = 'g m^-3',
+        field_name: str = 'specific humidity',
+        field_unit: str = 'g kg^-1',
         pspec: dict = {},
         rescale: dict = {},
         seed: int = 123456789,
@@ -40,9 +40,9 @@ class Cube:
         grid_wsp : GridWorkspace, optional
             Grid workspace object. Defaults to None.
         field_name : str, optional
-            Name of the physical variable. Defaults to 'water mass density'.
+            Name of the physical variable. Defaults to 'specific humidity'.
         field_unit : str, optional
-            Unit of the physical variable. Defaults to 'g m^-3'.
+            Unit of the physical variable. Defaults to 'g kg^-1'.
         pspec : dict, optional
             Power spectrum of the physical variable. Defaults to an empty dictionary.
         rescale : dict, optional
@@ -105,8 +105,9 @@ class Cube:
                     direction='c2r')
         
     def _rescale_field(self):
-        rescale_interp = self.grid_wsp.interp2grid(self.rescale['h'], self.rescale['f'])
-        self.field *= rescale_interp
+        
+        rescale_interp = self.grid_wsp.interp2grid(self.rescale['h'], self.rescale['f']) / jnp.std(self.field)
+        self.field = self.field * rescale_interp
 
     def generate_field_realization(self, time_step=0):
         """
@@ -124,6 +125,7 @@ class Cube:
         """
 
         self.rng_stream.set_seedkey(time_step)
+
         self._generate_noise()
         self._noise2field()
         self._rescale_field()       
