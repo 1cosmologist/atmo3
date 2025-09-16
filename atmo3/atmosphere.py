@@ -40,10 +40,11 @@ class Atmosphere:
                                                 Lbox=self.Lbox, 
                                                 site_altitude=self.site_altitude
                                                 )
-        self.component_names = []
-        self.components      = {}
-        
-    
+        self.component_names  = []
+        self.components       = {}
+        self.properties_names = []
+        self.properties       = {}
+
     def add_component(
         self,
         field_name: str,
@@ -85,7 +86,33 @@ class Atmosphere:
             seed=seed,
             nsub=nsub
         )
-        
+
+    def add_property(
+        self,
+        property_name: str,
+        property_unit: str,
+        property_value: dict
+    ) -> None:
+
+        """
+        Add a property to the atmosphere.
+
+        Parameters
+        ----------
+        property_name : str
+            Name of the property.
+        property_unit : str
+            Unit of the property.
+        property_value : dict
+            Property value as a function of height.
+        """
+
+        self.properties_names.append(property_name)
+        self.properties[property_name] = {
+            "unit": property_unit,
+            "value": property_value
+        }
+
     def generate_realization(
         self,
         time_step: int = 0,
