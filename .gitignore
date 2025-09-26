@@ -9,6 +9,7 @@ __pycache__/
 # Distribution / packaging
 .Python
 examples/*.png
+examples/*.dat
 build/
 develop-eggs/
 dist/
@@ -176,4 +177,4 @@ cython_debug/
 
 # VS Code
 .vscode/
-.venv/
+=

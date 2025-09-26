@@ -142,7 +142,31 @@ class Atmosphere:
             for component in self.components.values():
                 component.generate_field_realization(time_step=time_step)
                 
-    def compute_virtual_temperature(self):
+    def compute_virtual_temperature(
+        self
+    ) -> None:
+        """
+        Compute virtual temperature from specific humidity and temperature components.
+
+        The virtual temperature is computed as:
+
+        T_v = T * (1.0 + 0.61 * q)
+
+        where T is the temperature, q is the specific humidity, and T_v is the virtual temperature.
+
+        Parameters
+        ----------
+        None
+
+        Returns
+        -------
+        None
+
+        Raises
+        ------
+        ValueError
+            If 'specific humidity' and 'temperature' components are not present.
+        """
         if not (('specific humidity' in self.component_names) and ('temperature' in self.properties_names)):
             raise ValueError("Both 'specific humidity' and 'temperature' components must be present to compute virtual temperature.")
         
@@ -160,7 +184,29 @@ class Atmosphere:
         )
         self.components['virtual temperature'].field = self.grid_wsp.interp2grid(self.properties['temperature']['value']['h'], self.properties['temperature']['value']['f']) * (1.0 + 0.61 * self.components['specific humidity'].field)
 
-    def compute_pressure(self, P_surface: float = 55500.):
+    def compute_pressure(
+        self,
+        P_surface: float = 55500.
+    ) -> None:
+        """
+        Compute pressure from virtual temperature component.
+
+        The pressure is computed by integrating the hydrostatic equation from the top of the atmosphere to the bottom, using the virtual temperature as the temperature profile.
+
+        Parameters
+        ----------
+        P_surface : float, optional
+            Surface pressure in Pascal. Defaults to 55500.
+
+        Returns
+        -------
+        None
+
+        Raises
+        ------
+        ValueError
+            If 'virtual temperature' component is not present.
+        """
         if 'virtual temperature' not in self.component_names:
             raise ValueError("'virtual temperature' component must be present to compute pressure.")
         
@@ -177,22 +223,22 @@ class Atmosphere:
             nsub=None
         )
 
-        # integrand = const.g / const.R_dry_air / self.components['virtual temperature'].field
-        # z_axis = self.grid_wsp.grid_axis(altitude_axis=True)
-        ## FIX-ME: Replace with jax native intergral by avoiding slicing
-        # integral = np.zeros(self.grid_wsp.rshape_local)
-        
-        # for i in range(self.N):
-        #     integral[:,:,i] = np.asarray(jnp.trapezoid(integrand[:,:,0:i+1], x=z_axis[0:i+1], axis=2))
-            
-        # integral = jnp.asarray(integral)
-        ###
-        
-        # del integrand, z_axis ; gc.collect()
         self.components['pressure'].field = P_surface * jnp.exp(-(const.g / const.R_dry_air) * jnp.cumsum(self.grid_wsp.grid_spacing / self.components['virtual temperature'].field, axis=2))
-        # del integrand; gc.collect()
+        
 
-    def compute_water_vapor_density(self):
+    def compute_water_vapor_density(
+        self
+    ) -> None:
+        """
+        Compute water vapor density from specific humidity, pressure, and virtual temperature components.
+
+        The water vapor density is computed by multiplying the specific humidity, pressure, and virtual temperature components, and then dividing by the dry air gas constant and the virtual temperature.
+
+        Raises
+        ------
+        ValueError
+            If 'specific humidity', 'pressure', and 'virtual temperature' components are not present.
+        """
         if not (('specific humidity' in self.component_names) and ('pressure' in self.component_names) and ('virtual temperature' in self.component_names)):
             raise ValueError("Components 'specific humidity', 'pressure', and 'virtual temperature' must be present to compute water vapor density.")
         
@@ -209,8 +255,32 @@ class Atmosphere:
             nsub=None
         )
         self.components['water vapor density'].field = self.components['specific humidity'].field * self.components['pressure'].field / const.R_dry_air / self.components['virtual temperature'].field
-    
-    def compute_pwv(self):
+
+    def compute_pwv(
+        self
+    ) -> None:
+        """
+        Compute the precipitable water vapor (PWV) from the water vapor density component.
+
+        The PWV is computed by integrating the water vapor density field along the altitude axis.
+
+        Parameters
+        ----------
+        None
+
+        Returns
+        -------
+        None
+
+        Raises
+        ------
+        ValueError
+            If 'water vapor density' component is not present.
+
+        Notes
+        -----
+        The PWV is computed by integrating the water vapor density field along the altitude axis, and then converting the result from kg m-2 to mm by assuming 1 kg m-2 = 1 mm of PWV.
+        """
         z_axis = self.grid_wsp.grid_axis(altitude_axis=True)
         
         self.add_property(

@@ -4,12 +4,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 import atmo3 as a3 
 import cmocean as cmo
+import os
 
 nside_grid = 1024
 box_length_in_m = 10000.0
 site_altitude = 5110.0  # Atacama altitude in meters
 injection_scale_in_m = 200.0  # Injection scale in meters
-UTC_hour = 15 # Example UTC hour for the Atacama site
+UTC_hour = 20 # Example UTC hour for the Atacama site
 P_surface = 58800.  # Surface pressure in Pa or kg/(m.s^2)
 
 print(f"Initializing atmosphere with nside_grid={nside_grid} and box_length_in_m={box_length_in_m} and site_altitude={site_altitude} meters")
@@ -68,7 +69,7 @@ plt.colorbar(label='kg/kg')
 plt.title(f"specific humidity field y-z plane at x=0 m, UTC hour {UTC_hour}")
 plt.xlabel('y (m)')
 plt.ylabel('z (m)')
-plt.savefig('./examples/specific_humidity_yz_plane_wrescaling.png', bbox_inches='tight')
+plt.savefig(f'./examples/specific_humidity_yz_plane_wrescaling_UTC{UTC_hour}.png', bbox_inches='tight')
 plt.close()
 
 
@@ -84,7 +85,7 @@ plt.colorbar(label='K')
 plt.title(f"Virtual temperature field y-z plane at x=0 m, UTC hour {UTC_hour}")
 plt.xlabel('y (m)')
 plt.ylabel('z (m)')
-plt.savefig('./examples/virtual_temperature_yz_plane.png', bbox_inches='tight')
+plt.savefig(f'./examples/virtual_temperature_yz_plane_UTC{UTC_hour}.png', bbox_inches='tight')
 plt.close()
 
 atmo.compute_pressure(P_surface=P_surface)  # Surface pressure in Pa
@@ -98,7 +99,7 @@ plt.colorbar(label='Pa')
 plt.title(f"Pressure field y-z plane at x=0 m, UTC hour {UTC_hour}")
 plt.xlabel('y (m)')
 plt.ylabel('z (m)')
-plt.savefig('./examples/pressure_yz_plane.png', bbox_inches='tight')
+plt.savefig(f'./examples/pressure_yz_plane_UTC{UTC_hour}.png', bbox_inches='tight')
 plt.close()
 
 atmo.compute_water_vapor_density()
@@ -111,7 +112,7 @@ plt.colorbar(label='kg/m^3')
 plt.title(f"Water vapor density field y-z plane at x=0 m, UTC hour {UTC_hour}")
 plt.xlabel('y (m)')
 plt.ylabel('z (m)')
-plt.savefig('./examples/water_vapor_density_yz_plane.png', bbox_inches='tight')
+plt.savefig(f'./examples/water_vapor_density_yz_plane_UTC{UTC_hour}.png', bbox_inches='tight')
 plt.close()
 
 atmo.compute_pwv()
@@ -124,8 +125,19 @@ plt.colorbar(label='mm')
 plt.title(f"Precipitable water vapor field y-z plane at z={site_altitude} m, UTC hour {UTC_hour}")
 plt.xlabel('x (m)')
 plt.ylabel('y (m)')
-plt.savefig('./examples/precipitable_water_vapor_yz_plane.png', bbox_inches='tight')
+plt.savefig(f'./examples/precipitable_water_vapor_yz_plane_UTC{UTC_hour}.png', bbox_inches='tight')
 plt.close()
 
-print("Mean PWV: {:.4f} mm, standard deviation: {:.4f} mm".format(np.mean(atmo.properties['precipitable water vapor']['value']['f']), np.std(atmo.properties['precipitable water vapor']['value']['f'])))
+output_filename = './examples/pwv_stats.dat'
+mean_pwv = np.mean(atmo.properties['precipitable water vapor']['value']['f'])
+std_pwv = np.std(atmo.properties['precipitable water vapor']['value']['f'])
 
+# Check if the file exists to determine if a header is needed
+file_exists = os.path.exists(output_filename)
+
+with open(output_filename, 'a') as f:
+    if not file_exists:
+        f.write("# UTC_hour mean_pwv_mm std_pwv_mm\n")
+    f.write(f"{UTC_hour} {mean_pwv:.4f} {std_pwv:.4f}\n")
+
+print(f"Appended PWV stats for UTC hour {UTC_hour} to {output_filename}")
