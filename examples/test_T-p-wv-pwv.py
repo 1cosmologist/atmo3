@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import atmo3 as a3 
 import cmocean as cmo
 
-nside_grid = 512
+nside_grid = 1024
 box_length_in_m = 10000.0
 site_altitude = 5110.0  # Atacama altitude in meters
 injection_scale_in_m = 200.0  # Injection scale in meters
@@ -16,7 +16,7 @@ print(f"Initializing atmosphere with nside_grid={nside_grid} and box_length_in_m
 atmo = a3.Atmosphere(
         nside_grid=nside_grid, 
         box_length_in_m=box_length_in_m,
-        site_altitude=5110.0,  # Atacama altitude in meters
+        site_altitude=site_altitude,  # Atacama altitude in meters
         )
 
 print(f"Creating power spectrum for specific humidity normalized to 1.")

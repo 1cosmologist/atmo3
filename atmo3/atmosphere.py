@@ -177,19 +177,20 @@ class Atmosphere:
             nsub=None
         )
 
-        integrand = const.g / const.R_dry_air / self.components['virtual temperature'].field
-        z_axis = self.grid_wsp.grid_axis(altitude_axis=True)
+        # integrand = const.g / const.R_dry_air / self.components['virtual temperature'].field
+        # z_axis = self.grid_wsp.grid_axis(altitude_axis=True)
         ## FIX-ME: Replace with jax native intergral by avoiding slicing
-        integral = np.zeros(self.grid_wsp.rshape_local)
+        # integral = np.zeros(self.grid_wsp.rshape_local)
         
-        for i in range(self.N):
-            integral[:,:,i] = np.asarray(jnp.trapezoid(integrand[:,:,0:i+1], x=z_axis[0:i+1], axis=2))
+        # for i in range(self.N):
+        #     integral[:,:,i] = np.asarray(jnp.trapezoid(integrand[:,:,0:i+1], x=z_axis[0:i+1], axis=2))
             
-        integral = jnp.asarray(integral)
+        # integral = jnp.asarray(integral)
         ###
         
-        del integrand, z_axis ; gc.collect()
-        self.components['pressure'].field = P_surface * jnp.exp(-integral)
+        # del integrand, z_axis ; gc.collect()
+        self.components['pressure'].field = P_surface * jnp.exp(-(const.g / const.R_dry_air) * jnp.cumsum(self.grid_wsp.grid_spacing / self.components['virtual temperature'].field, axis=2))
+        # del integrand; gc.collect()
 
     def compute_water_vapor_density(self):
         if not (('specific humidity' in self.component_names) and ('pressure' in self.component_names) and ('virtual temperature' in self.component_names)):
