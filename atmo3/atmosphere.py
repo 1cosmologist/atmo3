@@ -1,5 +1,10 @@
 from . import cube
 from . import grid_utils as gutl
+from . import constants  as const
+import jax
+import jax.numpy as jnp
+import numpy as np
+import gc
 
 class Atmosphere:
     
@@ -52,6 +57,7 @@ class Atmosphere:
         pspec: dict,
         rescale: dict,
         seed: int,
+        mean: dict = None,
         nsub: int = 1024**3
     ) -> None:
         
@@ -83,6 +89,7 @@ class Atmosphere:
             field_unit=field_unit,
             pspec=pspec,
             rescale=rescale,
+            mean=mean,
             seed=seed,
             nsub=nsub
         )
@@ -135,5 +142,84 @@ class Atmosphere:
             for component in self.components.values():
                 component.generate_field_realization(time_step=time_step)
                 
+    def compute_virtual_temperature(self):
+        if not (('specific humidity' in self.component_names) and ('temperature' in self.properties_names)):
+            raise ValueError("Both 'specific humidity' and 'temperature' components must be present to compute virtual temperature.")
+        
+        self.component_names.append('virtual temperature')
+        self.components['virtual temperature'] = cube.Cube(
+            N=self.N,
+            Lbox=self.Lbox,
+            grid_wsp=self.grid_wsp,
+            field_name='virtual temperature',
+            field_unit='K',
+            pspec=None,
+            rescale=None,
+            seed=None,
+            nsub=None
+        )
+        self.components['virtual temperature'].field = self.grid_wsp.interp2grid(self.properties['temperature']['value']['h'], self.properties['temperature']['value']['f']) * (1.0 + 0.61 * self.components['specific humidity'].field)
+
+    def compute_pressure(self, P_surface: float = 55500.):
+        if 'virtual temperature' not in self.component_names:
+            raise ValueError("'virtual temperature' component must be present to compute pressure.")
+        
+        self.component_names.append('pressure')
+        self.components['pressure'] = cube.Cube(
+            N=self.N,
+            Lbox=self.Lbox,
+            grid_wsp=self.grid_wsp,
+            field_name='pressure',
+            field_unit='Pa',
+            pspec=None,
+            rescale=None,
+            seed=None,
+            nsub=None
+        )
+
+        integrand = const.g / const.R_dry_air / self.components['virtual temperature'].field
+        z_axis = self.grid_wsp.grid_axis(altitude_axis=True)
+        ## FIX-ME: Replace with jax native intergral by avoiding slicing
+        integral = np.zeros(self.grid_wsp.rshape_local)
+        
+        for i in range(self.N):
+            integral[:,:,i] = np.asarray(jnp.trapezoid(integrand[:,:,0:i+1], x=z_axis[0:i+1], axis=2))
+            
+        integral = jnp.asarray(integral)
+        ###
+        
+        del integrand, z_axis ; gc.collect()
+        self.components['pressure'].field = P_surface * jnp.exp(-integral)
+
+    def compute_water_vapor_density(self):
+        if not (('specific humidity' in self.component_names) and ('pressure' in self.component_names) and ('virtual temperature' in self.component_names)):
+            raise ValueError("Components 'specific humidity', 'pressure', and 'virtual temperature' must be present to compute water vapor density.")
+        
+        self.component_names.append('water vapor density')
+        self.components['water vapor density'] = cube.Cube(
+            N=self.N,
+            Lbox=self.Lbox,
+            grid_wsp=self.grid_wsp,
+            field_name='water vapor density',
+            field_unit='kg m-3',
+            pspec=None,
+            rescale=None,
+            seed=None,
+            nsub=None
+        )
+        self.components['water vapor density'].field = self.components['specific humidity'].field * self.components['pressure'].field / const.R_dry_air / self.components['virtual temperature'].field
+    
+    def compute_pwv(self):
+        z_axis = self.grid_wsp.grid_axis(altitude_axis=True)
+        
+        self.add_property(
+            property_name='precipitable water vapor',
+            property_unit='mm',
+            property_value={
+                'h': self.site_altitude,
+                'f': jnp.trapezoid(self.components['water vapor density'].field, x=z_axis, axis=2)  # Assuming 1 kg m-2 = 1 mm of PWV
+            }
+        )
+        
     def compute_emission(self):
         pass
