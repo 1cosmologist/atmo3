@@ -9,6 +9,7 @@ __pycache__/
 # Distribution / packaging
 .Python
 examples/*.png
+examples/*.dat
 build/
 develop-eggs/
 dist/
@@ -173,3 +174,7 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+
+# VS Code
+.vscode/
+=

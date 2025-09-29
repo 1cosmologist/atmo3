@@ -20,8 +20,9 @@ class Cube:
         grid_wsp: type[GridWorkspace] = None,
         field_name: str = 'specific humidity',
         field_unit: str = 'g kg^-1',
-        pspec: dict = {},
-        rescale: dict = {},
+        pspec: dict = None,
+        rescale: dict = None,
+        mean: dict = None,
         seed: int = 123456789,
         nsub: int = 1024**3,
     ) -> None:
@@ -59,6 +60,7 @@ class Cube:
         self.field_unit = field_unit
         self.pspec      = pspec
         self.rescale    = rescale
+        self.mean       = mean
         self.seed       = seed
         self.nsub       = nsub
         
@@ -94,6 +96,8 @@ class Cube:
 
     def _noise2field(self):
         import numpy as np
+        
+        if self.pspec is None: return
         power    = np.asarray([self.pspec['k'],self.pspec['pofk']])
         transfer = power
         p_whitenoise = (2*np.pi)**3/(self.grid_wsp.d3k*self.N**3) # white noise power spectrum
@@ -106,8 +110,14 @@ class Cube:
         
     def _rescale_field(self):
         
+        if self.rescale is None: return
         rescale_interp = self.grid_wsp.interp2grid(self.rescale['h'], self.rescale['f']) / jnp.std(self.field)
         self.field = self.field * rescale_interp
+        
+    def _add_mean(self):
+        if self.mean is None: return
+        mean_interp = self.grid_wsp.interp2grid(self.mean['h'], self.mean['f'])
+        self.field = self.field + mean_interp
 
     def generate_field_realization(self, time_step=0):
         """
@@ -128,4 +138,5 @@ class Cube:
 
         self._generate_noise()
         self._noise2field()
-        self._rescale_field()       
+        self._rescale_field()
+        self._add_mean()
