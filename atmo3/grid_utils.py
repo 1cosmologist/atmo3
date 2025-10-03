@@ -138,3 +138,172 @@ class GridWorkspace:
         zz = zz.ravel()
         interp_fcn = jnp.interp(zz, x_1d, f_1d, left=0., right='extrapolate')
         return jnp.reshape(interp_fcn, self.rshape_local)#.astype(jnp.float32)
+
+    def zlayer_to_zslice(
+        self,
+        z_layer_center: float
+        ):
+        """
+        The k index of the layer in altitude correspoding to z_layer_center.
+        Parameters
+        ----------
+        z_layer_center : float
+            Center of the altitude layer in meters.
+        Returns
+        -------
+        k : int
+            The k index of the layer in altitude corresponding to z_layer_center.
+        """
+
+        return int((z_layer_center - self.site_altitude) // self.grid_spacing)
+    
+    def pointing_vec_center_voxel(
+        self,
+        indices_grid: jnp.ndarray,
+        detector_position: jnp.ndarray = None,
+        ):
+        """
+        Given the ijk coordinates of a list of voxels, compute the unit pointing vector from a given detector position to the center of each voxel.
+        Parameters
+        ----------
+        indices: jnp.ndarray
+            An array of shape (..., 3) with integer voxel indices (i,j,k).
+        detector_position : jnp.ndarray, optional
+            The position of the detector in meters. Default is [0.0, 0.0, 0.0].
+        Returns
+        -------
+        normalized_coords : jnp.ndarray
+            The unit pointing vector from the detector position to the center of the voxel.
+        """
+        if detector_position is None:
+            detector_position = jnp.zeros(3, dtype=jnp.float32)
+        # --- Step 1: in-bounds mask (shape (...,1)) ---
+        in_bounds = jnp.all((indices_grid >= 0) & (indices_grid < self.N), axis=-1, keepdims=True)
+
+
+        voxel_centers = (indices_grid.astype(jnp.float32) + 0.5) * self.grid_spacing
+
+        pointing_vecs = voxel_centers - detector_position
+        norms = jnp.linalg.norm(pointing_vecs, axis=-1, keepdims=True)
+        
+        unit_pointing_vecs = pointing_vecs / norms
+
+        # mask invalid outputs with NaN
+        return jnp.where(in_bounds & (norms > 0), unit_pointing_vecs, jnp.nan)
+    
+    def lonlat_to_unitvec(
+            self, 
+            theta: float, 
+            phi: float,
+            lonlat: bool = True):
+        """
+        Convert longitude and latitude to a unit vector.
+        Parameters
+        ----------
+        theta, phi : float
+            Angular coordinates of a point on the sphere
+
+        lonlatbool : bool
+            If True, input angles are assumed to be longitude and latitude in degree, otherwise, they are co-latitude and longitude in radians.
+
+        Returns
+        -------
+        jnp.ndarray
+            A unit vector corresponding to the given longitude and latitude.
+        """
+        if lonlat:
+            theta = jnp.deg2rad(theta)
+            phi = jnp.deg2rad(phi)
+            theta = jnp.pi/2 - theta
+
+        # Compute the unit vector components
+        x = jnp.sin(theta) * jnp.cos(phi)
+        y = jnp.sin(theta) * jnp.sin(phi)
+        z = jnp.cos(theta)
+
+        return jnp.array([x, y, z])
+
+    def separation_distance_pointing_voxel_to_pointing_detector(
+        self,
+        unit_pointing_vecs: jnp.ndarray,
+        unit_pointing_vec_reference: jnp.ndarray,
+        gamma_tol: float = 10.0,
+    ) -> jnp.ndarray:
+        """
+        Given unit pointing vectors from detector to voxels, compute the angular separation between these vectors and a given pointing direction and mask voxels outside the cone.
+        Parameters
+        ----------
+        unit_pointing_vecs : jnp.ndarray
+            An array of shape (..., 3) with unit pointing vectors from the detector to the voxels.
+        unit_pointing_vec_reference : jnp.ndarray
+            A unit vector of shape (3,) representing the reference pointing direction.
+        gamma_tol : float, optional
+            Angular tolerance in degrees. Default is 10.0.
+        Returns
+        -------
+        mask : jnp.ndarray
+            A boolean array of the same shape as unit_pointing_vecs[..., 0] indicating which voxels are within the angular tolerance.
+        """
+
+        # dot product along last axis (elementwise)
+        dot_products = jnp.sum(unit_pointing_vecs * unit_pointing_vec_reference, axis=-1)
+
+        # mask voxels within angular tolerance
+        voxels_within_angle = dot_products >= jnp.cos(jnp.deg2rad(gamma_tol))
+
+        return voxels_within_angle
+
+    @jax.jit
+    def zlayer_to_voxels(
+        self,
+        k_layer_center: int,
+        unit_pointing_vec_reference: jnp.ndarray,
+        detector_position: jnp.ndarray = None,
+        gamma_tol: float = 10.0,  ## in degrees
+    ):
+        """
+        For a given altitude layer, return the coordinates of the voxels within a cone defined by a pointing direction and angular tolerance.
+        Parameters
+        ----------
+        k_layer_center : int
+            The k index of the layer in altitude corresponding to k_layer_center.
+        unit_pointing_vec_reference : jnp.ndarray
+            A unit vector of shape (3,) representing the reference pointing direction.
+        gamma_tol : float, optional
+            Angular tolerance in degrees. Default is 10.0.
+        detector_position : jnp.ndarray, optional
+            The position of the detector in meters. Default is [0.0, 0.0, 0.0].
+        Returns
+        -------
+        mask: jnp.ndarray
+            A boolean array indicating which voxels are within the angular tolerance.
+        """
+
+        i, j = jnp.meshgrid(jnp.arange(self.N), jnp.arange(self.N), indexing="ij")  # shape (N,N)
+        k = jnp.full_like(i, k_layer_center)  # shape (N,N)
+
+        indices_2d = jnp.stack([i, j, k], axis=-1)  # shape (N,N,3)
+
+        unit_pointing_vecs = self.pointing_vec_center_voxel(indices_grid=indices_2d, detector_position=detector_position)  # shape (N,N,3)
+
+        voxels_within_angle = self.separation_distance_pointing_voxel_to_pointing_detector(
+            unit_pointing_vecs, unit_pointing_vec_reference, gamma_tol
+        )  # shape (N,N)
+
+        return indices_2d[voxels_within_angle]
+
+ 
+
+
+
+
+
+
+
+
+
+
+
+
+
+            
