@@ -5,6 +5,7 @@ import gc
 gamma_tol_default = 10.0  # degrees
 default_tol = jnp.cos(jnp.deg2rad(gamma_tol_default))
 
+
 class GridWorkspace:
     def __init__(self, N, Lbox, site_altitude=0.0, partition="jaxshard"):
         """
@@ -287,7 +288,7 @@ class GridWorkspace:
         masked_indices = jnp.where(voxels_within_angle[..., None], indices_2d, 0)
 
         return masked_indices
-    
+
     def zslice_to_voxels(
         self,
         unit_pointing_vec_reference: jnp.ndarray,
@@ -325,11 +326,11 @@ class GridWorkspace:
                 k_layer_center=k,
                 unit_pointing_vec_reference=unit_pointing_vec_reference,
                 detector_position=detector_position,
-                tolerance=tolerance
+                tolerance=tolerance,
             )
-        voxels_indices_slices = jax.vmap(map_func)(k_slice)    
 
-        voxels_indices_slices = jnp.swapaxes(voxels_indices_slices,axis1=0,axis2=-1)
+        voxels_indices_slices = jax.vmap(map_func)(k_slice)
+
+        voxels_indices_slices = jnp.swapaxes(voxels_indices_slices, axis1=0, axis2=-1)
 
         return voxels_indices_slices  # shape (3,N,N,Nslice)
-    
