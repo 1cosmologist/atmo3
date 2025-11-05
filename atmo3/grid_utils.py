@@ -261,7 +261,7 @@ class GridWorkspace:
         tolerance : float, optional
             Cosine of the angular tolerance in degrees. Default is cos(10.0°)~0.985.
         detector_position : jnp.ndarray, optional
-            The position of the detector in meters. Default is [0.0, 0.0, 0.0].
+            The position of the detector in meters relative to the site altitude. Default is [0.0, 0.0, 0.0].
         Returns
         -------
         mask: jnp.ndarray
@@ -334,3 +334,165 @@ class GridWorkspace:
         voxels_indices_slices = jnp.swapaxes(voxels_indices_slices, axis1=0, axis2=-1)
 
         return voxels_indices_slices  # shape (3,N,N,Nslice)
+
+    def intercepted_voxel_with_pointing_detector(
+        self, unit_pointing_vecs: jnp.ndarray, unit_pointing_vec_reference: jnp.ndarray
+    ) -> jnp.ndarray:
+        """
+        Given unit pointing vectors from detector to voxels, find the voxel closest to the pointing direction.
+        Parameters
+        ----------
+        unit_pointing_vecs : jnp.ndarray
+            An array of shape (..., 3) with unit pointing vectors from the detector to the voxels.
+        unit_pointing_vec_reference : jnp.ndarray
+            A unit vector of shape (3,) representing the reference pointing direction.
+        Returns
+        -------
+        intercepted_voxel : jnp.ndarray
+            The index of the voxel closest to the pointing direction.
+        """
+
+        # dot product along last axis (elementwise)
+        dot_products = jnp.sum(
+            unit_pointing_vecs * unit_pointing_vec_reference, axis=-1
+        )
+
+        i, j = jnp.unravel_index(jnp.argmax(dot_products), dot_products.shape)
+
+        return dot_products == dot_products[i, j]
+
+    def zlayer_to_intercepted_voxel(
+        self,
+        k_layer_center: int,
+        unit_pointing_vec_reference: jnp.ndarray,
+        detector_position: jnp.ndarray = None,
+    ):
+        """
+        For a given altitude layer, return the coordinates of the closest intercepted voxel given a pointing direction.
+        Parameters
+        ----------
+        k_layer_center : int
+            The k index of the layer in altitude corresponding to k_layer_center.
+        unit_pointing_vec_reference : jnp.ndarray
+            A unit vector of shape (3,) representing the reference pointing direction.
+        detector_position : jnp.ndarray, optional
+            The position of the detector in meters. Default is [0.0, 0.0, 0.0].
+        Returns
+        -------
+        mask: jnp.ndarray
+            A boolean array indicating which voxels are within the angular tolerance.
+        """
+
+        i, j = jnp.meshgrid(
+            jnp.arange(self.N), jnp.arange(self.N), indexing="ij"
+        )  # shape (N,N)
+        k = jnp.full_like(i, k_layer_center)  # shape (N,N)
+
+        indices_2d = jnp.stack([i, j, k], axis=-1)  # shape (N,N,3)
+
+        unit_pointing_vecs = self.pointing_vec_center_voxel(
+            indices_grid=indices_2d, detector_position=detector_position
+        )  # shape (N,N,3)
+
+        voxels_within_angle = self.intercepted_voxel_with_pointing_detector(
+            unit_pointing_vecs, unit_pointing_vec_reference
+        )  # shape (N,N)
+
+        masked_indices = jnp.where(voxels_within_angle[..., None], indices_2d, 0)
+
+        return masked_indices
+
+    def zslice_to_intercepted_voxel(
+        self,
+        unit_pointing_vec_reference: jnp.ndarray,
+        kmin: int = None,
+        kmax: int = None,
+        detector_position: jnp.ndarray = None,
+    ):
+        """
+        For a given altitude slice, return the coordinates of the intercepted voxels given a pointing direction.
+        Parameters
+        ----------
+        kmin, kmax : int
+            The k indices defining the slice in altitude. Nslice = kmax - kmin.
+        unit_pointing_vec_reference : jnp.ndarray
+            A unit vector of shape (3,) representing the reference pointing direction.
+        detector_position : jnp.ndarray, optional
+            The position of the detector in meters. Default is [0.0, 0.0, 0.0].
+        Returns
+        -------
+        mask: jnp.ndarray
+            A boolean array indicating which voxels are within the angular tolerance.
+        """
+        if kmin is None:
+            kmin = detector_position[-1] // self.grid_spacing
+        if kmax is None:
+            kmax = self.end
+
+        k_slice = jnp.arange(kmin, kmax)
+
+        def map_func(k):
+            return self.zlayer_to_intercepted_voxel(
+                k_layer_center=k,
+                unit_pointing_vec_reference=unit_pointing_vec_reference,
+                detector_position=detector_position,
+            )
+
+        voxels_indices_slices = jax.vmap(map_func)(k_slice)
+
+        voxels_indices_slices = jnp.swapaxes(voxels_indices_slices, axis1=0, axis2=-1)
+
+        return voxels_indices_slices  # shape (3,N,N,Nslice)
+
+    def zlice_to_selected_voxels_along_los(
+        self,
+        unit_pointing_vec_reference: jnp.ndarray,
+        kmin: int = None,
+        kmax: int = None,
+        detector_position: jnp.ndarray = None,
+        max_radius: float = None,
+    ):
+        """
+        For a given altitude slice, return the coordinates of the selected voxels along the line of sight defined by a pointing direction.
+        Parameters
+        ----------
+        kmin, kmax : int
+            The k indices defining the slice in altitude. Nslice = kmax - kmin.
+        unit_pointing_vec_reference : jnp.ndarray
+            A unit vector of shape (3,) representing the reference pointing direction.
+        detector_position : jnp.ndarray, optional
+            The position of the detector in meters. Default is [0.0, 0.0, 0.0].
+        max_radius : float, optional
+            Maximum radius from the detector position to consider voxels. Default is None.
+        Returns
+        -------
+        selected_voxels: jnp.ndarray
+            Array of shape (3,N_selected) containing the coordinates of the nearest voxel to the pointing direction for each slice within max_radius.
+        """
+
+        max_radius = (
+            self.N * self.grid_spacing - detector_position[2]
+            if max_radius is None
+            else max_radius
+        )
+
+        voxels_indices_slices = self.zslice_to_intercepted_voxel(
+            unit_pointing_vec_reference=unit_pointing_vec_reference,
+            kmin=kmin,
+            kmax=kmax,
+            detector_position=detector_position,
+        )  # shape (3,N,N,Nslice)
+
+        # flatten and keep only non-zero centers
+        nonzero_mask = jnp.any(voxels_indices_slices > 0, axis=0)
+        # Extract the selected voxel centers
+        selected_voxels = voxels_indices_slices[:, nonzero_mask]  # shape (3, Nslice)
+        mask_radius = (
+            jnp.linalg.norm(
+                selected_voxels * self.grid_spacing - detector_position[:, jnp.newaxis],
+                axis=0,
+            )
+            <= max_radius
+        )
+
+        return selected_voxels[:, mask_radius]  # shape (3, N_selected)
