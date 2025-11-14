@@ -1,6 +1,6 @@
 project(
     'atmo3',
-    version: '0.0.1.a3',
+    version: '0.0.1.a4',
     meson_version: '>=0.63.0',
     default_options: [
       # The default can yield broken results.
@@ -41,6 +41,7 @@ py3_dep = py3.dependency()
 py_sources = [
     'atmo3/__init__.py',
     'atmo3/atmosphere.py',
+    'atmo3/atm_utils.py'
     'atmo3/constants.py',
     'atmo3/cube.py',
     'atmo3/grid_utils.py',
