@@ -4,7 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import atmo3 as a3 
 
-nside_grid = 1024
+nside_grid = 128
 box_length_in_m = 10000.0
 
 print(f"Initializing atmosphere with nside_grid={nside_grid} and box_length_in_m={box_length_in_m}")
