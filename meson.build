@@ -41,7 +41,7 @@ py3_dep = py3.dependency()
 py_sources = [
     'atmo3/__init__.py',
     'atmo3/atmosphere.py',
-    'atmo3/atm_utils.py'
+    'atmo3/atm_utils.py',
     'atmo3/constants.py',
     'atmo3/cube.py',
     'atmo3/grid_utils.py',
