@@ -498,64 +498,74 @@ class GridWorkspace:
         )
 
         return selected_voxels[:, mask_radius]  # shape (3, N_selected)
-    
+
     ### Analytical line-of-sight
 
     def rotation_matrix(elevation_in_deg, azimuth_in_deg):
-        rot_y = Rotation.from_euler('y', -elevation_in_deg, degrees=True)
-        rot_z = Rotation.from_euler('z', azimuth_in_deg, degrees=True)
+        rot_y = Rotation.from_euler("y", -elevation_in_deg, degrees=True)
+        rot_z = Rotation.from_euler("z", azimuth_in_deg, degrees=True)
         total_rotation = rot_z * rot_y
         return total_rotation
-    
+
     def polygonal_vertices(polygon_order, fwhm: u.Quantity):
         angles = jnp.linspace(0, 2 * jnp.pi, polygon_order, endpoint=False)
         if fwhm.unit.is_equivalent(u.degree):
             fwhm = fwhm.to(u.radian)
         cos = jnp.cos(fwhm.to(u.radian).value)
         sin = jnp.sin(fwhm.to(u.radian).value)
-        return jnp.array([cos*jnp.ones_like(angles),
-                        sin*jnp.cos(angles),
-                        sin*jnp.sin(angles)]).T
-    
+        return jnp.array(
+            [cos * jnp.ones_like(angles), sin * jnp.cos(angles), sin * jnp.sin(angles)]
+        ).T
+
     def hexagon_first_rim(self, fwhm: u.Quantity):
         return self.polygonal_vertices(6, fwhm)
-    
+
     def hexagon_second_rim(self, fwhm: u.Quantity):
-        vertices = self.polygonal_vertices(6, 2*fwhm)
+        vertices = self.polygonal_vertices(6, 2 * fwhm)
         ## add midpoints between two consecutive vertices
         midpoints = (vertices + jnp.roll(vertices, -1, axis=0)) / 2
         return jnp.vstack([vertices, midpoints])
-    
+
     def hexagon_center_and_first_rim(self, fwhm: u.Quantity):
         center = jnp.array([[1.0, 0.0, 0.0]])
         first_rim = self.hexagon_first_rim(fwhm)
         return jnp.vstack([center, first_rim])
 
-    def unit_vectors_center_and_first_rim(self, fwhm: u.Quantity, elevation_in_deg, azimuth_in_deg):
-            rot_matrix = self.rotation_matrix(elevation_in_deg, azimuth_in_deg)
-            center_and_first_rim = self.hexagon_center_and_first_rim(fwhm)
-            rotated_fp_center_and_first_rim = rot_matrix.apply(center_and_first_rim)
-            return rotated_fp_center_and_first_rim
+    def unit_vectors_center_and_first_rim(
+        self, fwhm: u.Quantity, elevation_in_deg, azimuth_in_deg
+    ):
+        rot_matrix = self.rotation_matrix(elevation_in_deg, azimuth_in_deg)
+        center_and_first_rim = self.hexagon_center_and_first_rim(fwhm)
+        rotated_fp_center_and_first_rim = rot_matrix.apply(center_and_first_rim)
+        return rotated_fp_center_and_first_rim
 
-    def los_points_coords_radius(self, altitude_slice, unit_vector, det_pos, max_radius: bool = False):
+    def los_points_coords_radius(
+        self, altitude_slice, unit_vector, det_pos, max_radius: bool = False
+    ):
         r = (altitude_slice - self.site_altitude) / unit_vector[2]
         x_los = det_pos[0] + r * unit_vector[0]
         y_los = det_pos[1] + r * unit_vector[1]
         if max_radius:
-            mask_r = (r<self.Lbox)
+            mask_r = r < self.Lbox
         else:
             mask_r = jnp.ones_like(r)
-        return jnp.array([x_los, y_los, altitude_slice, r,mask_r]).T
+        return jnp.array([x_los, y_los, altitude_slice, r, mask_r]).T
 
-    def los_points_center_and_first_rim(self, altitude_slice, fwhm: u.Quantity, elevation_in_deg, azimuth_in_deg, detector_position: jnp.ndarray, max_radius: bool = False):
-        rotated_fp_center_and_first_rim = self.unit_vectors_center_and_first_rim(fwhm, elevation_in_deg, azimuth_in_deg)
+    def los_points_center_and_first_rim(
+        self,
+        altitude_slice,
+        fwhm: u.Quantity,
+        elevation_in_deg,
+        azimuth_in_deg,
+        detector_position: jnp.ndarray,
+        max_radius: bool = False,
+    ):
+        rotated_fp_center_and_first_rim = self.unit_vectors_center_and_first_rim(
+            fwhm, elevation_in_deg, azimuth_in_deg
+        )
         los_center_and_first_rim = jax.vmap(
-            lambda uv: self.los_points_coords_radius(altitude_slice, uv, detector_position, max_radius=max_radius)
+            lambda uv: self.los_points_coords_radius(
+                altitude_slice, uv, detector_position, max_radius=max_radius
+            )
         )(rotated_fp_center_and_first_rim)
         return los_center_and_first_rim
-    
-    
-    
-
-    
-

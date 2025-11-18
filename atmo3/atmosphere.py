@@ -8,6 +8,7 @@ import gc
 from jax.scipy.interpolate import RegularGridInterpolator
 import astropy.units as u
 
+
 class Atmosphere:
     def __init__(
         self,
@@ -394,20 +395,25 @@ class Atmosphere:
         x = self.grid_wsp.grid_axis()
         y = self.grid_wsp.grid_axis(slab_axis=True)
         z = self.grid_wsp.grid_axis(altitude_axis=True)
-        
-        los_points = self.grid_wsp.los_points_center_and_first_rim(altitude_slice=z, 
-                                                                   fwhm=fwhm, 
-                                                                   elevation_in_deg=theta, 
-                                                                   azimuth_in_deg=phi, 
-                                                                   detector_position=detector_position,
-                                                                   max_radius=max_radius)
+
+        los_points = self.grid_wsp.los_points_center_and_first_rim(
+            altitude_slice=z,
+            fwhm=fwhm,
+            elevation_in_deg=theta,
+            azimuth_in_deg=phi,
+            detector_position=detector_position,
+            max_radius=max_radius,
+        )
 
         wv_cube = self.components["water vapor density"].field
-        interpolator = RegularGridInterpolator((x,y,z), wv_cube, method='linear')
+        interpolator = RegularGridInterpolator((x, y, z), wv_cube, method="linear")
 
         interpolated_values_total = interpolator(los_points[..., :3])
         mask_radius = los_points[..., 4]
-        integrated_pwv_total = jnp.trapezoid(interpolated_values_total * mask_radius, los_points[..., 3], axis=1)
+        radius_values = los_points[..., 3]
+        integrated_pwv_total = jnp.trapezoid(
+            interpolated_values_total * mask_radius, radius_values, axis=1
+        )
 
         self.add_property(
             property_name="precipitable water vapor",
@@ -415,7 +421,9 @@ class Atmosphere:
             property_value={
                 "h": self.site_altitude,
                 "Direction": pointing,
-                "f": jnp.mean(integrated_pwv_total, axis=0),  # Assuming 1 kg m-2 = 1 mm of PWV
+                "f": jnp.mean(
+                    integrated_pwv_total, axis=0
+                ),  # Assuming 1 kg m-2 = 1 mm of PWV
             },
         )
 
