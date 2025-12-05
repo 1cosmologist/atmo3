@@ -37,9 +37,9 @@ R_d = 287.05     # Gas constant dry air (J/kg/K)
 R_v = 461.5      # Gas constant water vapor (J/kg/K)
 
 # File paths
-era5_dir = Path().resolve() / "Data" / "era_5"/ "2023"
-APEX_file = Path().resolve() / "Data" / "APEX" / "meteo_apex_2006_2025.csv"
-save_path = Path().resolve() / "Data" / "Profiles"
+era5_dir = Path(__file__).resolve() / "Data" / "era_5"/ "2023"
+APEX_file = Path(__file__).resolve() / "Data" / "APEX" / "meteo_apex_2006_2025.csv"
+save_path = Path(__file__).resolve() / "Data" / "Profiles"
 q_profile = save_path / f"mean_q_profiles_{month_str}.npz"
 
 # ERA5 data directory
@@ -350,4 +350,5 @@ if Save_delta_q:
 
 ta_ds.close()
 r_ds.close()
+
 geopt_ds.close()
