@@ -42,8 +42,8 @@ The available variables of the Era-5 2023 data are:
 # Parameters
 # =============================================================================
 
-data_dir = Path().resolve() / "Data" / "era_5"/ "2023"
-save_path = Path().resolve() / "Data" / "Profiles"
+data_dir = Path().resolve(__file__) / "Data" / "era_5"/ "2023"
+save_path = Path().resolve(__file__) / "Data" / "Profiles"
 year = 2023
 month = 7
 day = 13
@@ -740,3 +740,4 @@ plot_check_vertical("ta", data_dir, year, month, days_to_compare, hour=16)
 
 # Timeseries check
 plot_check_timeseries("ta", data_dir, year, month, days_to_compare, alt_ref=5100)
+
