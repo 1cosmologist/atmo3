@@ -179,4 +179,4 @@ cython_debug/
 .vscode/
 
 ./examples/*.png
-./examples/atmo_fields_UTC0.npz
+examples/atmo_fields_UTC0.npz
