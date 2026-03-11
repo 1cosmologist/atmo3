@@ -136,5 +136,5 @@ class GridWorkspace:
         del x, y, z, xx, yy; gc.collect()
 
         zz = zz.ravel()
-        interp_fcn = jnp.interp(zz, x_1d, f_1d, left=0., right='extrapolate')
+        interp_fcn = jnp.interp(zz, x_1d, f_1d, left='extrapolate', right='extrapolate')
         return jnp.reshape(interp_fcn, self.rshape_local)#.astype(jnp.float32)

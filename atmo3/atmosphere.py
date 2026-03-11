@@ -182,7 +182,7 @@ class Atmosphere:
             seed=None,
             nsub=None
         )
-        self.components['virtual temperature'].field = self.grid_wsp.interp2grid(self.properties['temperature']['value']['h'], self.properties['temperature']['value']['f']) * (1.0 + 0.61 * self.components['specific humidity'].field)
+        self.components['virtual temperature'].field = self.grid_wsp.interp2grid(self.properties['temperature']['value']['h'], self.properties['temperature']['value']['f']) #* (1.0 + 0.61 * self.components['specific humidity'].field)
 
     def compute_pressure(
         self,
@@ -223,6 +223,7 @@ class Atmosphere:
             nsub=None
         )
 
+        print(self.components['virtual temperature'].field.min(), self.components['virtual temperature'].field.max(), self.grid_wsp.grid_spacing, (const.g / const.R_dry_air))
         self.components['pressure'].field = P_surface * jnp.exp(-(const.g / const.R_dry_air) * jnp.cumsum(self.grid_wsp.grid_spacing / self.components['virtual temperature'].field, axis=2))
         
 

@@ -109,3 +109,64 @@ def relative_to_specific_humidity(RH, T, altitude, Kelvin=False):
     epsilon = const.R_dry_air / const.R_water_vapor
     q = (epsilon * P_wv) / (P_total - P_wv * (1 - epsilon))
     return q
+
+def virtual_temperature(T, q):
+    """Calculate virtual temperature.
+
+    Parameters
+    ----------
+    T : float or jnp.ndarray
+        Temperature in Kelvin.
+    q : float or jnp.ndarray
+        Specific humidity in kg/kg.
+
+    Returns
+    -------
+    T_v : float or jnp.ndarray
+        Virtual temperature in Kelvin.
+    """
+    T_v = T * (1 + 0.61 * q)
+    return T_v
+
+def pressure_from_virtual_temperature(T_v, delta_z, P_surface=55500.0):
+    """Calculate pressure from virtual temperature using the hydrostatic equation.
+
+    Parameters
+    ----------
+    T_v : float or jnp.ndarray
+        Virtual temperature in Kelvin.
+    delta_z : float or jnp.ndarray
+        Grid spacing in meters.
+    P_surface : float, optional
+        Surface pressure in Pa. Default is 55500 Pa.
+
+    Returns
+    -------
+    P : float or jnp.ndarray
+        Pressure in Pa.
+    """
+    exponent = -(const.g / const.R_dry_air) * jnp.cumsum(delta_z / T_v, axis=-1)
+    P = P_surface * jnp.exp(exponent)
+    return P
+
+
+def water_vapor_density(q, P, T_v):
+    """Calculate water vapor density.
+    Parameters
+    ----------
+    q : float or jnp.ndarray
+        Specific humidity in kg/kg.
+    P : float or jnp.ndarray
+        Pressure in Pa.
+    T_v : float or jnp.ndarray
+        Virtual temperature in Kelvin.
+
+    Returns
+    -------
+    rho_wv : float or jnp.ndarray
+        Water vapor density in kg/m^3.
+    """
+    
+    rho_wv = (q * P) / (const.R_dry_air * T_v)
+
+    return rho_wv
