@@ -12,4 +12,5 @@ pressure_at_sea_level  = 101325.0  # Sea level standard atmospheric pressure in 
 temperature_at_sea_level = 288.15    # Sea level standard temperature in K
 temperature_lapse_rate = 0.0065     # Temperature lapse rate in K/m
 
+earth_radius = 6374.888 * con.kilo # m
 
