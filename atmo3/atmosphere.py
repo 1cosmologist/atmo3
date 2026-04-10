@@ -194,39 +194,3 @@ class Atmosphere:
                 component.generate_field_realization(time_step=time_step)
                 if component.field_name == 'water vapor': self.atm_calibrator.calibrate_pwv(self.grid_wsp.grid_axis(axis=2, altitude_axis=True), component.field)
                 
-    
-    def compute_pwv(
-        self
-    ) -> None:
-        """
-        Compute the precipitable water vapor (PWV) from the water vapor density component.
-
-        The PWV is computed by integrating the water vapor density field along the altitude axis.
-
-        Parameters
-        ----------
-        None
-
-        Returns
-        -------
-        None
-
-        Raises
-        ------
-        ValueError
-            If 'water vapor density' component is not present.
-
-        Notes
-        -----
-        The PWV is computed by integrating the water vapor density field along the altitude axis, and then converting the result from kg m-2 to mm by assuming 1 kg m-2 = 1 mm of PWV.
-        """
-        z_axis = self.grid_wsp.grid_axis(altitude_axis=True)
-        
-        self.add_property(
-            property_name='precipitable water vapor',
-            property_unit='mm',
-            property_value={
-                'h': self.site_altitude,
-                'f': jnp.trapezoid(self.components['water vapor density'].field, x=z_axis, axis=2)  # Assuming 1 kg m-2 = 1 mm of PWV
-            }
-        )
