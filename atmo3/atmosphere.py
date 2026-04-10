@@ -74,8 +74,7 @@ class Atmosphere:
         
         self.component_names  = []
         self.components       = {}
-        self.properties_names = []
-        self.properties       = {}
+        self.component_mean   = {}
 
     def _add_component(
         self,
@@ -117,37 +116,13 @@ class Atmosphere:
                                         seed=seed,
                                         nsub=nsub,                               
                                     )
+        self.component_mean[field_name] = mean
 
-    # def add_property(
-    #     self,
-    #     property_name: str,
-    #     property_unit: str,
-    #     property_value: dict
-    # ) -> None:
-
-    #     """
-    #     Add a property to the atmosphere.
-
-    #     Parameters
-    #     ----------
-    #     property_name : str
-    #         Name of the property.
-    #     property_unit : str
-    #         Unit of the property.
-    #     property_value : dict
-    #         Property value as a function of height.
-    #     """
-
-    #     self.properties_names.append(property_name)
-    #     self.properties[property_name] = {
-    #         "unit": property_unit,
-    #         "value": property_value
-    #     }
     
-    def add_temperature_fluctuations(self,
-                                     power_spec: dict, 
-                                     seed: int = 13579, 
-                                     ):
+    def add_temperature(self,
+                        power_spec: dict, 
+                        seed: int = 13579, 
+                        ) -> None :
         self._add_component(
             field_name='temperature',
             field_unit='K',
@@ -157,15 +132,15 @@ class Atmosphere:
             mean= {'h': self.super_grid.z, 'f': self.atm_calibrator.temperature_profile},
         )
         
-    def add_watervapor_fluctuations(self,
-                                    power_spec:dict,
-                                    seed: int = 24680,
-                                    ):
+    def add_watervapor(self,
+                       power_spec:dict,
+                       seed: int = 24680,
+                       ) -> None :
         self._add_component(
             field_name='water vapor',
             field_unit='kg / m^3',
             pspec=power_spec,
-            zscale={'h': self.super_grid.z, 'f':self.atm_calibrator.spec_humidity_fluctuation_profile},
+            zscale={'h': self.super_grid.z, 'f':self.atm_calibrator.spec_humidity_fluctuation_profile*self.atm_calibrator.q2rho_h2o},
             seed=seed,
             mean= {'h': self.super_grid.z, 'f': self.atm_calibrator.spec_humidity_profile*self.atm_calibrator.q2rho_h2o},
         )
