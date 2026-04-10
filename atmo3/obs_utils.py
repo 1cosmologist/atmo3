@@ -40,28 +40,28 @@ def polygonal_vertices(polygon_order, fwhm: u.Quantity):
         [cos * jnp.ones_like(angles), sin * jnp.cos(angles), sin * jnp.sin(angles)]
     ).T
 
-def hexagon_first_rim(self, fwhm: u.Quantity):
+def hexagon_first_rim(fwhm: u.Quantity):
     """
     Generate the vertices of the first rim of a hexagon on the unit sphere corresponding to the given FWHM.
     Parameters:
     fwhm : u.Quantity
         Full width at half maximum angle, specifying the radius of the hexagon vertices on the unit sphere.
     """
-    return self.polygonal_vertices(6, fwhm)
+    return polygonal_vertices(6, fwhm)
 
-def hexagon_second_rim(self, fwhm: u.Quantity):
+def hexagon_second_rim(fwhm: u.Quantity):
     """
     Generate the vertices of the second rim of a hexagon on the unit sphere corresponding to twice the given FWHM.
     Parameters:
     fwhm : u.Quantity
         Full width at half maximum angle, specifying the radius of the hexagon vertices on the unit sphere.
     """
-    vertices = self.polygonal_vertices(6, 2 * fwhm)
+    vertices = polygonal_vertices(6, 2 * fwhm)
     ## add midpoints between two consecutive vertices
     midpoints = (vertices + jnp.roll(vertices, -1, axis=0)) / 2
     return jnp.vstack([vertices, midpoints])
 
-def hexagon_center_and_first_rim(self, fwhm: u.Quantity):
+def hexagon_center_and_first_rim(fwhm: u.Quantity):
     """
     Generate the vertices of the center and first rim of a hexagon on the unit sphere corresponding to the given FWHM.
     Parameters:
@@ -69,11 +69,11 @@ def hexagon_center_and_first_rim(self, fwhm: u.Quantity):
         Full width at half maximum angle, specifying the radius of the hexagon vertices on the unit sphere.
     """
     center = jnp.array([[1.0, 0.0, 0.0]])
-    first_rim = self.hexagon_first_rim(fwhm)
+    first_rim = hexagon_first_rim(fwhm)
     return jnp.vstack([center, first_rim])
 
 def unit_vectors_center_and_first_rim(
-    self, fwhm: u.Quantity, elevation_in_deg, azimuth_in_deg
+    fwhm: u.Quantity, elevation_in_deg, azimuth_in_deg
 ):
     """
     Generate the pointing vectors for the center and first rim of a hexagon pointing in a given direction.
@@ -85,13 +85,14 @@ def unit_vectors_center_and_first_rim(
     azimuth_in_deg : float
         Azimuth angle in degrees.
     """
-    rot_matrix = self.rotation_matrix(elevation_in_deg, azimuth_in_deg)
-    center_and_first_rim = self.hexagon_center_and_first_rim(fwhm)
+    rot_matrix = rotation_matrix(elevation_in_deg, azimuth_in_deg)
+    center_and_first_rim = hexagon_center_and_first_rim(fwhm)
     rotated_fp_center_and_first_rim = rot_matrix.apply(center_and_first_rim)
     return rotated_fp_center_and_first_rim
 
 def los_points_coords_radius(
-    self, 
+    site_altitude,
+    Lbox,
     altitude_slice, 
     unit_vector, 
     det_pos,
@@ -118,11 +119,11 @@ def los_points_coords_radius(
     max_radius : bool, optional
         Whether to apply a maximum radius mask (default is False).
     """
-    r = (altitude_slice - self.site_altitude) / unit_vector[2]
+    r = (altitude_slice - site_altitude) / unit_vector[2]
     x_los = det_pos[0] + r * unit_vector[0]
     y_los = det_pos[1] + r * unit_vector[1]
     if max_radius:
-        mask_r = r < self.Lbox
+        mask_r = r < Lbox
     else:
         mask_r = jnp.ones_like(r, dtype=bool)
     if west_wind is not None and south_wind is not None:
@@ -132,7 +133,6 @@ def los_points_coords_radius(
     return jnp.array([x_los, y_los, altitude_slice, r, mask_r]).T
 
 def los_points_center_and_first_rim(
-    self,
     altitude_slice,
     fwhm: u.Quantity,
     elevation_in_deg,
@@ -165,11 +165,11 @@ def los_points_center_and_first_rim(
     max_radius : bool, optional
         Whether to apply a maximum radius mask (default is False).
     """
-    rotated_fp_center_and_first_rim = self.unit_vectors_center_and_first_rim(
+    rotated_fp_center_and_first_rim = unit_vectors_center_and_first_rim(
         fwhm, elevation_in_deg, azimuth_in_deg
     )
     los_center_and_first_rim = jax.vmap(
-        lambda uv: self.los_points_coords_radius(
+        lambda uv: los_points_coords_radius(
             altitude_slice, uv, detector_position, west_wind=west_wind, south_wind=south_wind, delta_t=delta_t, max_radius=max_radius
         )
     )(rotated_fp_center_and_first_rim)
