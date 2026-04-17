@@ -77,9 +77,11 @@ class GridWorkspace:
         self.grid_spacing = self.Lbox / self.N
         
     
-    @partial(jax.jit, static_argnames=['self'])      
+    # @partial(jax.jit, static_argnames=['self'])      
     def k_axis(self, axis, r=False):
-        return jnp.where(r, (jnp.fft.rfftfreq(self.N[axis]) * self.dk[axis] * self.N[axis]), (jnp.fft.fftfreq(self.N[axis]) * self.dk[axis] * self.N[axis]))#.astype(jnp.float32)
+        if r:
+            return jnp.fft.rfftfreq(self.N[axis]) * self.dk[axis] * self.N[axis]
+        return jnp.fft.fftfreq(self.N[axis]) * self.dk[axis] * self.N[axis]#.astype(jnp.float32)
     
     def k_square(self, kx, ky, kz):
         kxa,kya,kza = jnp.meshgrid(kx,ky,kz,indexing='ij')
@@ -91,7 +93,7 @@ class GridWorkspace:
 
         return k2
     
-    @partial(jax.jit, static_argnames=['self'])
+    # @partial(jax.jit, static_argnames=['self'])
     def interp2kgrid(self, k_1d, f_1d):
         kx = self.k_axis(0)
         ky = self.k_axis(1)
@@ -101,14 +103,17 @@ class GridWorkspace:
         del kx, ky, kz ; gc.collect()
 
         interp_fcn = jnp.interp(interp_fcn, k_1d, f_1d, left=0., right='extrapolate')
-        return jnp.reshape(interp_fcn, self.cshape_local)#.astype(jnp.float32)
+        return jnp.reshape(interp_fcn, self.cshape)#.astype(jnp.float32)
     
-    @partial(jax.jit, static_argnames=['self'])
+    # @partial(jax.jit, static_argnames=['self'])
     def grid_axis(self, axis, altitude_axis=False):
         
-        return jnp.where(altitude_axis, self.site_altitude + (jnp.arange(self.N[axis]) * self.grid_spacing[axis]), (jnp.arange(self.N[axis]) * self.grid_spacing[axis]))#.astype(jnp.float32)
+        if altitude_axis:
+            return self.site_altitude + (jnp.arange(self.N[axis]) * self.grid_spacing[axis])
         
-    @partial(jax.jit, static_argnames=['self'])
+        return jnp.arange(self.N[axis]) * self.grid_spacing[axis]#.astype(jnp.float32)
+        
+    # @partial(jax.jit, static_argnames=['self'])
     def interp2grid(self, x_1d, f_1d):
         x = self.grid_axis(0)
         y = self.grid_axis(1)
@@ -122,4 +127,4 @@ class GridWorkspace:
         interp_fcn = jnp.interp(zz, x_1d, f_1d, left='extrapolate', right='extrapolate')
         return jnp.reshape(interp_fcn, self.rshape)#.astype(jnp.float32)
     
-    
+
