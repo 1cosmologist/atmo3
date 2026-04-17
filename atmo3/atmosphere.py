@@ -115,7 +115,7 @@ class Atmosphere:
                                                 z_max=self.Lbox[2],
                                                 Nz=self.N[2],
                                                 time_utc=self.session_time,
-                                                site_coordinates=self.site_coordinates,
+                                                site_lonlat=self.site_coordinates,
                                                 site_altitude=self.site_altitude
                                                 )
         
@@ -286,10 +286,10 @@ class Atmosphere:
             components are generated.  Defaults to ``None``.
         """
         if component_name in self.component_names:
-            self.components[component_name].generate_field_realization(time_step=time_step)
-            if component_name == 'water vapor': self.atm_calibrator.calibrate_pwv(self.grid_wsp.grid_axis(axis=2, altitude_axis=True), self.components[component_name].field)
+            self.components[component_name].generate_field_fluctuations(time_step=int(time_step))
+            if component_name == 'water vapor': self.atm_calibrator.calibrate_pwv(self.grid_wsp.grid_axis(axis=2, altitude_axis=True), self.components[component_name])
         else:
             for component in self.components.values():
-                component.generate_field_realization(time_step=time_step)
-                if component.field_name == 'water vapor': self.atm_calibrator.calibrate_pwv(self.grid_wsp.grid_axis(axis=2, altitude_axis=True), component.field)
+                component.generate_field_fluctuations(time_step=int(time_step))
+                if component.field_name == 'water vapor': self.atm_calibrator.calibrate_pwv(self.grid_wsp.grid_axis(axis=2, altitude_axis=True), component)
                 
