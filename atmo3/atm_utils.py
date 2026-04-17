@@ -2,7 +2,30 @@ from . import constants as const
 import jax.numpy as jnp 
 import numpy as np 
 
-def saturation_vapor_pressure(T, Kelvin=False):
+def saturation_vapor_pressure_water(T_K):
+    # Reference ERA5 documentation Sec 7.4.2 Relative humidity
+    T0 = 273.16 # K
+    T_ice = 250.16 # K  
+    
+    #a1 = 611.21 Pa, a3 = 17.502 and a4 = 32.19 K
+    a1 = 611.21 # Pa 
+    a3 = 17.502 #
+    a4 = 32.19  # K
+    
+    return jnp.where(T_K > T_ice, a1 * jnp.exp(a3 * (T_K - T0)/(T_K - a4)), 0.)
+
+def saturation_vapor_pressure_ice(T_K):
+    # Reference ERA5 documentation Sec 7.4.2 Relative humidity
+    T0 = 273.16 # K 
+    
+    #a1 = 611.21 Pa, a3 = 22.587 and a4 = −0.7 K
+    a1 = 611.21 # Pa
+    a3 = 22.587 #
+    a4 = -0.7  # K
+    
+    return jnp.where(T_K <= T0, a1 * jnp.exp(a3 * (T_K - T0)/(T_K - a4)), 0.)
+
+def saturation_water_vapor_pressure(T):
     """Calculate saturation vapor pressure over liquid water using the
     Arden-Buck equation.
 
@@ -17,17 +40,19 @@ def saturation_vapor_pressure(T, Kelvin=False):
         Saturation vapor pressure in Pa.
     """
 
-    if Kelvin:
-        T = T - 273.15  # Convert Kelvin to Celsius
+    T0 = 273.16 # K
+    T_ice = 250.16 # K  
     
-    f = 1. + 3.4e-3 # enhancement factor for pressures up to 800 mbar
+    alpha = jnp.where( T <= T_ice, 0., jnp.where( T >= T0, 1., ((T - T_ice)/(T0 - T_ice))**2.)  )
+             
+    return alpha * saturation_vapor_pressure_water(T) + (1. - alpha) * saturation_vapor_pressure_ice(T)
 
-    a = jnp.where(T >= 0, 6.1121, 6.1115)  # hPa
-    b = jnp.where(T >= 0, 17.502, 22.452)  
-    c = jnp.where(T >= 0, 240.97, 272.55)  # °C
-    
-    P_sat = f * a * jnp.exp((b * T / (T + c))) * 100.0  # Convert hPa to Pa
-    return P_sat
+def saturation_water_vapor_density(T):
+    e_s = saturation_water_vapor_pressure(T) # Pa
+    return e_s / (const.R_water_vapor * T) 
+
+def water_vapor_density_to_rel_humidity(rho_wv, T):
+    return rho_wv / saturation_water_vapor_density(T)   # fraction
 
 def water_vapor_pressure(RH, T, Kelvin=False):
     """Calculate water vapor pressure from relative humidity and temperature.
@@ -44,7 +69,7 @@ def water_vapor_pressure(RH, T, Kelvin=False):
     P_wv : float or jnp.ndarray
         Water vapor pressure in Pa.
     """
-    P_sat = saturation_vapor_pressure(T, Kelvin=Kelvin)
+    P_sat = saturation_water_vapor_pressure(T, Kelvin=Kelvin)
     P_wv = (RH / 100.0) * P_sat
     return P_wv
 
