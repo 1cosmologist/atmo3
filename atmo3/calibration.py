@@ -92,7 +92,7 @@ class AtmosphereCalibrator:
         self.vir_temperature = au.virtual_temperature(self.temperature_profile, self.spec_humidity_profile)
         self.q2rho_h2o = self.pressure / (const.R_dry_air * self.vir_temperature)
 
-        t0 = pd.Timestamp(super_grid.time_utc)
+        t0 = pd.Timestamp(super_grid.time_utc[0]).replace(tzinfo=None)
         t_start = t0 - pd.Timedelta(minutes=30)
         t_end   = t0 + pd.Timedelta(minutes=30)
 
@@ -112,6 +112,7 @@ class AtmosphereCalibrator:
             columns=['UT', 'PWV', 'Temperature', 'Humidity', 'Wind_Dir', 'Wind_Speed']
         )
 
+        apexdata['Temperature'] += 273.15  # APEX is in Celsius
         self.apex_pwv_mean = apexdata['PWV'].mean()
         self.apex_pwv_std  = apexdata['PWV'].std()
         self.apex_temperature_mean = apexdata['Temperature'].mean()
@@ -124,14 +125,16 @@ class AtmosphereCalibrator:
 
 
         temperature_grid = super_grid.property_from_era5(temperature_file)
+        
         self.temp_fluctuation_profile = jnp.std(temperature_grid, axis=(0, 1))
 
+        # print(self.temp_fluctuation_profile)
         self._temperature_fluctuation_norm = self.apex_temperature_std / self.temp_fluctuation_profile[0]
-
+        # print(self._temperature_fluctuation_norm)
         del temperature_grid
 
         self.temperature_profile      *= self._mean_temperature_normalization
-        self.temp_fluctuation_profile *= self._temperature_fluctuation_norm
+        # self.temp_fluctuation_profile *= self._temperature_fluctuation_norm
 
         self.spec_humidity_profile    *= self._mean_spec_humidity_normalization
         
@@ -139,6 +142,9 @@ class AtmosphereCalibrator:
         self.q2rho_h2o = self.pressure / (const.R_dry_air * self.vir_temperature)
         
         self.spec_humidity_fluctuation_profile = 1e-3 * jnp.copy(self.spec_humidity_profile)
+        
+        
+        print(self.apex_pwv_mean, self.apex_pwv_std)
         
         
     def calibrate_pwv(
