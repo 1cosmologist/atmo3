@@ -22,8 +22,8 @@ class SuperGrid:
         self.z_geo = jnp.asarray(self.geopotential / con.g)[::-1]
         self.site_altitude = site_altitude
         
-        self.x = 2 * con.earth_radius * jnp.sin(jnp.deg2rad(self.lat - self.site_coordinates[1])/2.)
-        self.y = 2 * con.earth_radius * jnp.cos(jnp.deg2rad(self.site_coordinates[1])) * jnp.sin(jnp.deg2rad(self.lon - self.site_coordinates[0])/2.)
+        self.x = 2 * con.earth_radius * jnp.cos(jnp.deg2rad(self.site_coordinates[1])) * jnp.sin(jnp.deg2rad(self.lon - self.site_coordinates[0])/2.)
+        self.y = 2 * con.earth_radius * jnp.sin(jnp.deg2rad(self.lat - self.site_coordinates[1])/2.)
         self.z = site_altitude + jnp.linspace(0, z_max, Nz)
         
         # print(self.z_geo.shape, self.zgeo_atsite.shape)
