@@ -32,10 +32,10 @@ class Observer:
         if not isinstance(boresight, jnp.ndarray):
             raise TypeError("Boresight has to provided.")
         
-        if not (self.grid_wsp.N[0]//2 < boresight[0] < 3*self.grid_wsp.N[0]//2):
+        if not (self.grid_wsp.Lbox[0]/4 < boresight[0] < 3*self.grid_wsp.Lbox[0]/4):
             raise ValueError("Boresight x-coord is incorrectly set.")    
         
-        if not (self.grid_wsp.N[1]//2 < boresight[1] < 3*self.grid_wsp.N[1]//2):
+        if not (self.grid_wsp.Lbox[1]/4 < boresight[1] < 3*self.grid_wsp.Lbox[1]/4):
             raise ValueError("Boresight y-coord is incorrectly set.")  
         
         self.boresight = boresight 
@@ -89,14 +89,15 @@ class Observer:
                         max_radius = True
                     ))
             
-        self.los_obj
+        self.los_obj = jnp.array(self.los_obj)
         
     def scan_component(
         self,
         component_field: jnp.ndarray
     ):
-        interpol = jsp.intepolate.RegularGridInterpolator(self.axes, component_field, fill_value=0.)
-        return interpol(self.los_obj[:,:,0:3])
+        interpol = jsp.interpolate.RegularGridInterpolator(self.axes, component_field, fill_value=0.)
+        shape = self.los_obj.shape
+        return interpol(self.los_obj[:,:,0:3].reshape(shape[0]*shape[1], 3)).reshape(shape[0], shape[1])
         
         
         

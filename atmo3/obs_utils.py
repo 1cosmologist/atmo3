@@ -130,7 +130,7 @@ def los_points_coords_radius(
     x_los = det_pos[0] + r * unit_vector[0]
     y_los = det_pos[1] + r * unit_vector[1]
     if max_radius:
-        mask_r = r < Lbox
+        mask_r = r < Lbox[2]
     else:
         mask_r = jnp.ones_like(r, dtype=bool)
     if north_wind is not None and east_wind is not None:

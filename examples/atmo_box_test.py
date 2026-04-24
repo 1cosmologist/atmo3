@@ -30,6 +30,10 @@ ta_injection_scale_in_m = 200.0  # Temperature injection scale (m)
 nside_grid = [512, 512, 256]
 box_length = [20000., 20000., 10000.]
 
+boresight  = jnp.array([box_length[0]//2., box_length[1]//2.])
+passband   = {'nu': jnp.array([150.]), 'g(nu)': jnp.array([1.])}
+fwhm       = 10.
+
 # APEX observatory: altitude 5100 m a.s.l., Llano de Chajnantor, Chile.
 site_altitude = 5100.
 site_coordinates = [-67.78, -22.95]  # [longitude, latitude] in degrees
@@ -37,6 +41,22 @@ site_coordinates = [-67.78, -22.95]  # [longitude, latitude] in degrees
 # Simulation epoch in UTC.  ERA5 profiles and APEX weather data are
 # selected from a ±30-minute window centred on this timestamp.
 time_utc = datetime(2023, 9, 16, 0, 0, tzinfo=timezone.utc)
+
+# =============================================================================
+# Scan strategy
+# =============================================================================
+
+# dt = 0 case
+timesamples = [np.datetime64(time_utc)]
+az          = [0.]      # in deg
+el          = [45.]     # in deg
+
+# remaining 59 samples
+for sample in range(60-1):
+    timesamples.append(timesamples[-1]+np.timedelta64(1, 's'))
+    az.append(az[-1] + 1.)
+    el.append(el[-1]) 
+    
 
 # =============================================================================
 # Input data paths
@@ -49,6 +69,9 @@ atmo3_data = '/pscratch/sd/s/shamikg/atmo3_data/'
 geopotfile = f'{atmo3_data}era5/2023/geopt.202309.ap1e5.291.0_293.0_-24.0_-22.0_025.nc'
 tempfile   = f'{atmo3_data}era5/2023/ta.202309.ap1e5.291.0_293.0_-24.0_-22.0_025.nc'
 spechfile  = f'{atmo3_data}era5/2023/q.202309.ap1e5.291.0_293.0_-24.0_-22.0_025.nc'
+
+northwindfile = f'{atmo3_data}era5/2023/v.202309.ap1e5.291.0_293.0_-24.0_-22.0_025.nc'      # V-component North wind
+eastwindfile  = f'{atmo3_data}era5/2023/u.202309.ap1e5.291.0_293.0_-24.0_-22.0_025.nc'      # U-component East wind
 
 # APEX weather-station CSV (columns: UT, PWV, Temperature, Humidity,
 # Wind_Dir, Wind_Speed) spanning 2006–2025.
@@ -71,6 +94,21 @@ atmo_box = a3.Atmosphere(
     spec_humidity_file_era5=spechfile,
     apex_datafile=apexfile
 )
+
+obs = a3.Observer(
+    grid_wsp = atmo_box.grid_wsp,
+    super_grid = atmo_box.super_grid,
+    northwind_era5_file = None,
+    eastwind_era5_file = None,
+    boresight = jnp.array(boresight),       # in grid coordinates
+    passband = passband, 
+    fwhm_arcmin = fwhm
+)
+
+obs.compute_los_for_scan(timesamples, az, el)
+
+# print(np.array(obs.los_obj).shape)
+# exit()
 
 # =============================================================================
 # Define isotropic power spectra (Kolmogorov-like)
@@ -131,9 +169,24 @@ atmo_box.add_watervapor(
 # =============================================================================
 atmo_box.generate_realization(time_step=0)
 
+# ============================================================================
+# Observation
+# ============================================================================
+
+water_vapor_los = obs.scan_component(atmo_box.components['water vapor'].field + atmo_box.component_mean['water vapor']['f'].reshape(1, 1, -1))
+temperature_los = obs.scan_component(atmo_box.components['temperature'].field + atmo_box.component_mean['temperature']['f'].reshape(1, 1, -1))
+
+pwv_scan = jnp.trapezoid(water_vapor_los, x=obs.los_obj[:,:,3], axis=1)
 # =============================================================================
 # Visualisation
 # =============================================================================
+plt.figure(dpi=200)
+plt.plot(timesamples, pwv_scan, 'k-', lw=0.6)
+# plt.axhline(y=atmo_box.atm_calibrator.apex_pwv_mean)
+plt.xlabel("time samples (hh:mm:ss)")
+plt.ylabel("PWV (mm)")
+plt.savefig(f'./examples/pwv_scan_{time_utc:%Y-%m-%dT%H:%M}.png', bbox_inches='tight')
+plt.close()
 
 # --- Water-vapour total density: y-z cross-section at x = 0 ----------------
 # Total density = fluctuation + mean profile (reshaped to broadcast over x, y).
