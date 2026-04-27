@@ -12,7 +12,7 @@ import numpy as np
 from datetime import datetime, timezone
 import matplotlib.pyplot as plt
 import cmocean as cmo
-import pyrtlib as rtl
+#import pyrtlib as rtl
 
 import atmo3 as a3
 
