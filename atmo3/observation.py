@@ -51,7 +51,7 @@ class Observer:
         
         self.fwhm_arcmin = fwhm_arcmin
         
-        self.axes = (self.grid_wsp.grid_axis(axis=0), self.grid_wsp.grid_axis(axis=1), self.grid_wsp.grid_axis(axis=2))
+        self.axes = (self.grid_wsp.grid_axis(axis=0), self.grid_wsp.grid_axis(axis=1), self.grid_wsp.grid_axis(axis=2, altitude_axis=True))
         
         
         ### TODO: Calculate max time before refreshing simulation
@@ -85,7 +85,7 @@ class Observer:
                         self.boresight,
                         north_wind = self.north_wind,
                         east_wind = self.east_wind,
-                        delta_t = delta_t_in_s, 
+                        delta_t = delta_t_in_s[sample], 
                         max_radius = True
                     ))
             
@@ -95,7 +95,7 @@ class Observer:
         self,
         component_field: jnp.ndarray
     ):
-        interpol = jsp.interpolate.RegularGridInterpolator(self.axes, component_field, fill_value=0.)
+        interpol = jsp.interpolate.RegularGridInterpolator(self.axes, component_field, fill_value=0., method='linear')
         shape = self.los_obj.shape
         return interpol(self.los_obj[:,:,0:3].reshape(shape[0]*shape[1], 3)).reshape(shape[0], shape[1])
         

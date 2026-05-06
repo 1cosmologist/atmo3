@@ -135,7 +135,8 @@ def los_points_coords_radius(
         mask_r = jnp.ones_like(r, dtype=bool)
     if north_wind is not None and east_wind is not None:
         # Apply wind correction if west and south winds are provided
-        x_los += east_wind * delta_t
+
+        x_los += east_wind  * delta_t
         y_los += north_wind * delta_t
     return jnp.array([x_los, y_los, altitude_slice, r, mask_r]).T
 
@@ -182,3 +183,14 @@ def los_points_center_and_first_rim(
         )
     )(rotated_fp_center_and_first_rim)
     return los_center_and_first_rim
+
+
+@jax.jit
+def _wind_evolved_layer(field_sheet, north_wind_slice, east_wind_slice, delta_t_sec):
+    shift_x = east_wind_slice * delta_t_sec
+    shift_y = north_wind_slice * delta_t_sec
+    
+    return jnp.roll(field_sheet, [shift_x, shift_y], axis=[0,1]) 
+
+# def wind_evolved_field(field, north_wind, east_wind, delta_t_sec):
+#     return jax.vmap(lambda u: )
