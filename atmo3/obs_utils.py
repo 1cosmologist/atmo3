@@ -192,5 +192,10 @@ def _wind_evolved_layer(field_sheet, north_wind_slice, east_wind_slice, delta_t_
     
     return jnp.roll(field_sheet, [shift_x, shift_y], axis=[0,1]) 
 
-# def wind_evolved_field(field, north_wind, east_wind, delta_t_sec):
-#     return jax.vmap(lambda u: )
+@jax.jit
+def wind_evolved_field(field, north_wind, east_wind, delta_t_sec):
+    return jax.vmap(
+        lambda sheet, nw, ew: _wind_evolved_layer(sheet, nw, ew, delta_t_sec),
+        in_axes=(2, 0, 0),
+        out_axes=2,
+    )(field, north_wind, east_wind)
