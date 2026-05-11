@@ -62,6 +62,24 @@ class Observer:
         azimuth_deg: list,
         elevation_deg: list
     ):
+        """
+        Computes the line-of-sight coordinates and properties for a sequence of observations.
+        
+        Parameters
+        ----------
+        timelist : list
+            List of datetime-like objects representing the observation times.
+        azimuth_deg : list
+            List of azimuth angles in degrees, length matches timelist representing n_scans.
+        elevation_deg : list
+            List of elevation angles in degrees, length matches timelist representing n_scans.
+            
+        Returns
+        -------
+        None
+            Sets `self.los_obj`, a JAX array of shape (n_scans, n_los, 5).
+            The last dimension contains: [x_los, y_los, altitude_slice, radius, max_radius_mask].
+        """
         timearray = np.array(timelist, dtype='datetime64[ns]')
         delta_t_in_s   = (timearray - timearray[0]) / np.timedelta64(1, 's')
         
@@ -75,21 +93,20 @@ class Observer:
         pos_vec = jnp.array([x, y, z]) / jnp.sqrt(x**2. + y**2. + z**2.)
         alt_arr = self.grid_wsp.grid_axis(axis=2, altitude_axis=True)
         
-        self.los_obj = []
-        for sample in range(len(delta_t_in_s)):
-            self.los_obj.append(obs_utils.los_points_coords_radius(
-                        self.grid_wsp.site_altitude,
-                        self.grid_wsp.Lbox,
-                        alt_arr, 
-                        pos_vec[:,sample], 
-                        self.boresight,
-                        north_wind = self.north_wind,
-                        east_wind = self.east_wind,
-                        delta_t = delta_t_in_s[sample], 
-                        max_radius = True
-                    ))
-            
-        self.los_obj = jnp.array(self.los_obj)
+        self.los_obj = jax.vmap(
+            lambda uv, dt: obs_utils.los_points_coords_radius(
+                self.grid_wsp.site_altitude,
+                self.grid_wsp.Lbox,
+                alt_arr, 
+                uv, 
+                self.boresight,
+                north_wind=self.north_wind,
+                east_wind=self.east_wind,
+                delta_t=dt, 
+                max_radius=True
+            ),
+            in_axes=(1, 0)
+        )(pos_vec, jnp.array(delta_t_in_s))
         
     def scan_component(
         self,

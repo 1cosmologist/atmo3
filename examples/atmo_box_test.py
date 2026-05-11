@@ -12,7 +12,6 @@ import numpy as np
 from datetime import datetime, timezone
 import matplotlib.pyplot as plt
 import cmocean as cmo
-import pyrtlib as rtl
 import time
 
 import atmo3 as a3
@@ -53,10 +52,10 @@ timesamples = [np.datetime64(time_utc)]
 az          = [0.]      # in deg
 el          = [45.]     # in deg
 
-# remaining 59 samples
-for sample in range(60-1):
-    timesamples.append(timesamples[-1]+np.timedelta64(1, 's'))
-    az.append(az[-1] + 1.)
+# remaining 300 samples
+for sample in range(300-1):
+    timesamples.append(timesamples[-1] + np.timedelta64(200, 'ms'))
+    az.append(az[-1] + 0.2)
     el.append(el[-1]) 
     
 t1 = time.perf_counter()
@@ -237,6 +236,60 @@ plt.ylabel("PWV (mm)")
 plt.legend(frameon=False)
 plt.savefig(f'./examples/pwv_scan_{time_utc:%Y-%m-%dT%H:%M}.png', bbox_inches='tight')
 plt.close()
+
+pressure_los = jnp.interp(obs.los_obj[:,:,2], obs.axes[2], atmo_box.atm_calibrator.pressure) 
+pressure_los_w = jnp.interp(obs_w.los_obj[:,:,2], obs_w.axes[2], atmo_box.atm_calibrator.pressure)
+freqs_GHz = jnp.array([150., 185.])
+
+I_atm = a3.get_emission(temperature_los, pressure_los, water_vapor_los, jnp.diff(obs.los_obj[:,:,3], axis=1, prepend=0), freqs_GHz)
+T_atm = a3.intensitySI_to_Tb(I_atm[:,:,None], freqs_GHz[None, None,:])[:,:,0]
+
+I_atm_w = a3.get_emission(temperature_los_w, pressure_los, water_vapor_los_w, jnp.diff(obs_w.los_obj[:,:,3], axis=1, prepend=0), freqs_GHz)
+T_atm_w = a3.intensitySI_to_Tb(I_atm_w[:,:,None], freqs_GHz[None, None,:])[:,:,0]
+
+# print(I_atm.shape)
+
+plt.figure(dpi=200)
+plt.plot(timesamples, T_atm[:,0],   '-', lw=0.6, label=f'No wind {freqs_GHz[0]}')
+plt.plot(timesamples, T_atm_w[:,0], '-', lw=0.6, label=f'Diff wind {freqs_GHz[0]}')
+# plt.axhline(y=atmo_box.atm_calibrator.apex_pwv_mean)
+plt.xlabel("time samples (hh:mm:ss)")
+plt.ylabel(r"$T_b$ (K)")
+plt.legend(frameon=False)
+plt.savefig(f'./examples/brightness_temp_{freqs_GHz[0]}_{time_utc:%Y-%m-%dT%H:%M}.png', bbox_inches='tight')
+plt.close()
+
+plt.figure(dpi=200)
+plt.plot(timesamples, T_atm[:,1],   '-', lw=0.6, label=f'No wind {freqs_GHz[1]}')
+plt.plot(timesamples, T_atm_w[:,1], '-', lw=0.6, label=f'Diff wind {freqs_GHz[1]}')
+# plt.axhline(y=atmo_box.atm_calibrator.apex_pwv_mean)
+plt.xlabel("time samples (hh:mm:ss)")
+plt.ylabel(r"$T_b$ (K)")
+plt.legend(frameon=False)
+plt.savefig(f'./examples/brightness_temp_{freqs_GHz[1]}_{time_utc:%Y-%m-%dT%H:%M}.png', bbox_inches='tight')
+plt.close()
+
+plt.figure(dpi=200)
+plt.plot(timesamples, T_atm[:,0] - T_atm[:,0].mean(),   '-', lw=0.6, label=f'No wind {freqs_GHz[0]}')
+plt.plot(timesamples, T_atm_w[:,0] - T_atm_w[:,0].mean(), '-', lw=0.6, label=f'Diff wind {freqs_GHz[0]}')
+plt.plot(timesamples, T_atm[:,1] - T_atm[:,1].mean(),   '-', lw=0.6, label=f'No wind {freqs_GHz[1]}')
+plt.plot(timesamples, T_atm_w[:,1] - T_atm_w[:,1].mean(), '-', lw=0.6, label=f'Diff wind {freqs_GHz[1]}')
+# plt.axhline(y=atmo_box.atm_calibrator.apex_pwv_mean)
+plt.xlabel("time samples (hh:mm:ss)")
+plt.ylabel(r"$T_b$ (K)")
+plt.legend(frameon=False)
+plt.savefig(f'./examples/brightness_temp_fluctuations_{time_utc:%Y-%m-%dT%H:%M}.png', bbox_inches='tight')
+plt.close()
+
+plt.figure(dpi=200)
+plt.plot(T_atm[:,0],   T_atm[:,1],   'o', ms=1.2, label=f'No wind')
+plt.plot(T_atm_w[:,0], T_atm_w[:,1], 'o', ms=1.2, label=f'Diff wind')
+plt.xlabel(r"$T_b$ (K) 150 GHz")
+plt.ylabel(r"$T_b$ (K) 185 GHz")
+plt.legend(frameon=False)
+plt.savefig(f'./examples/brightness_temp_scatter{time_utc:%Y-%m-%dT%H:%M}.png', bbox_inches='tight')
+plt.close()
+
 
 # --- Water-vapour total density: y-z cross-section at x = 0 ----------------
 # Total density = fluctuation + mean profile (reshaped to broadcast over x, y).
