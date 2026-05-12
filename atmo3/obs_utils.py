@@ -2,7 +2,7 @@ import jax
 import jax.numpy as jnp
 from functools import partial
 from jax.scipy.spatial.transform import Rotation
-import astropy.units as u
+# import astropy.units as u
 
 ### Analytical line-of-sight
 ### These functions are used to interpolate values at the exact coordinates given an atmo3 realization.
@@ -22,7 +22,8 @@ def rotation_matrix(elevation_in_deg, azimuth_in_deg):
     total_rotation = rot_z * rot_y
     return total_rotation
 
-def polygonal_vertices(polygon_order, fwhm: u.Quantity):
+
+def polygonal_vertices(polygon_order, fwhm_in_arcmin):
     """
     Generate the vertices of a regular polygon on the unit sphere corresponding to the given FWHM.
     Parameters:
@@ -32,48 +33,53 @@ def polygonal_vertices(polygon_order, fwhm: u.Quantity):
         Full width at half maximum angle, specifying the radius of the polygon vertices on the unit sphere.
     """
     angles = jnp.linspace(0, 2 * jnp.pi, polygon_order, endpoint=False)
-    if fwhm.unit.is_equivalent(u.degree):
-        fwhm = fwhm.to(u.radian)
-    cos = jnp.cos(fwhm.to(u.radian).value)
-    sin = jnp.sin(fwhm.to(u.radian).value)
+    
+    fwhm = jnp.deg2rad(fwhm_in_arcmin / 60.)
+    cos = jnp.cos(fwhm)
+    sin = jnp.sin(fwhm)
     return jnp.array(
         [cos * jnp.ones_like(angles), sin * jnp.cos(angles), sin * jnp.sin(angles)]
     ).T
 
-def hexagon_first_rim(fwhm: u.Quantity):
+
+def hexagon_first_rim(fwhm_in_arcmin):
     """
     Generate the vertices of the first rim of a hexagon on the unit sphere corresponding to the given FWHM.
     Parameters:
     fwhm : u.Quantity
         Full width at half maximum angle, specifying the radius of the hexagon vertices on the unit sphere.
     """
-    return polygonal_vertices(6, fwhm)
+    return polygonal_vertices(6, fwhm_in_arcmin)
 
-def hexagon_second_rim(fwhm: u.Quantity):
+
+def hexagon_second_rim(fwhm_in_arcmin):
     """
     Generate the vertices of the second rim of a hexagon on the unit sphere corresponding to twice the given FWHM.
     Parameters:
     fwhm : u.Quantity
         Full width at half maximum angle, specifying the radius of the hexagon vertices on the unit sphere.
     """
-    vertices = polygonal_vertices(6, 2 * fwhm)
+    vertices = polygonal_vertices(6, 2 * fwhm_in_arcmin)
     ## add midpoints between two consecutive vertices
     midpoints = (vertices + jnp.roll(vertices, -1, axis=0)) / 2
     return jnp.vstack([vertices, midpoints])
 
-def hexagon_center_and_first_rim(fwhm: u.Quantity):
+
+def hexagon_center_and_first_rim(fwhm_in_arcmin):
     """
     Generate the vertices of the center and first rim of a hexagon on the unit sphere corresponding to the given FWHM.
     Parameters:
     fwhm : u.Quantity
         Full width at half maximum angle, specifying the radius of the hexagon vertices on the unit sphere.
     """
-    center = jnp.array([[1.0, 0.0, 0.0]])
-    first_rim = hexagon_first_rim(fwhm)
+    center = jnp.array([[1.0, 0.0, 0.0]])   ## ??
+    
+    first_rim = hexagon_first_rim(fwhm_in_arcmin)
     return jnp.vstack([center, first_rim])
 
+
 def unit_vectors_center_and_first_rim(
-    fwhm: u.Quantity, elevation_in_deg, azimuth_in_deg
+    fwhm_in_arcmin, elevation_in_deg, azimuth_in_deg
 ):
     """
     Generate the pointing vectors for the center and first rim of a hexagon pointing in a given direction.
@@ -86,9 +92,10 @@ def unit_vectors_center_and_first_rim(
         Azimuth angle in degrees.
     """
     rot_matrix = rotation_matrix(elevation_in_deg, azimuth_in_deg)
-    center_and_first_rim = hexagon_center_and_first_rim(fwhm)
+    center_and_first_rim = hexagon_center_and_first_rim(fwhm_in_arcmin)
     rotated_fp_center_and_first_rim = rot_matrix.apply(center_and_first_rim)
     return rotated_fp_center_and_first_rim
+
 
 def los_points_coords_radius(
     site_altitude,
@@ -96,8 +103,8 @@ def los_points_coords_radius(
     altitude_slice, 
     unit_vector, 
     det_pos,
-    west_wind: float = None,
-    south_wind: float = None,
+    north_wind: float = None,
+    east_wind: float = None,
     delta_t: float = 0.0, 
     max_radius: bool = False
 ):
@@ -123,23 +130,25 @@ def los_points_coords_radius(
     x_los = det_pos[0] + r * unit_vector[0]
     y_los = det_pos[1] + r * unit_vector[1]
     if max_radius:
-        mask_r = r < Lbox
+        mask_r = r < Lbox[2]
     else:
         mask_r = jnp.ones_like(r, dtype=bool)
-    if west_wind is not None and south_wind is not None:
+    if north_wind is not None and east_wind is not None:
         # Apply wind correction if west and south winds are provided
-        x_los += west_wind * delta_t
-        y_los += south_wind * delta_t
+
+        x_los += east_wind  * delta_t
+        y_los += north_wind * delta_t
     return jnp.array([x_los, y_los, altitude_slice, r, mask_r]).T
+
 
 def los_points_center_and_first_rim(
     altitude_slice,
-    fwhm: u.Quantity,
+    fwhm_in_arcmin,
     elevation_in_deg,
     azimuth_in_deg,
     detector_position: jnp.ndarray,
-    west_wind: float = None,
-    south_wind: float = None,
+    north_wind: float = None,
+    east_wind: float = None,
     delta_t: float = 0.0,
     max_radius: bool = False,
 ):
@@ -166,11 +175,27 @@ def los_points_center_and_first_rim(
         Whether to apply a maximum radius mask (default is False).
     """
     rotated_fp_center_and_first_rim = unit_vectors_center_and_first_rim(
-        fwhm, elevation_in_deg, azimuth_in_deg
+        fwhm_in_arcmin, elevation_in_deg, azimuth_in_deg
     )
     los_center_and_first_rim = jax.vmap(
         lambda uv: los_points_coords_radius(
-            altitude_slice, uv, detector_position, west_wind=west_wind, south_wind=south_wind, delta_t=delta_t, max_radius=max_radius
+            altitude_slice, uv, detector_position, north_wind=north_wind, east_wind=east_wind, delta_t=delta_t, max_radius=max_radius
         )
     )(rotated_fp_center_and_first_rim)
     return los_center_and_first_rim
+
+
+@jax.jit
+def _wind_evolved_layer(field_sheet, north_wind_slice, east_wind_slice, delta_t_sec):
+    shift_x = east_wind_slice * delta_t_sec
+    shift_y = north_wind_slice * delta_t_sec
+    
+    return jnp.roll(field_sheet, [shift_x, shift_y], axis=[0,1]) 
+
+@jax.jit
+def wind_evolved_field(field, north_wind, east_wind, delta_t_sec):
+    return jax.vmap(
+        lambda sheet, nw, ew: _wind_evolved_layer(sheet, nw, ew, delta_t_sec),
+        in_axes=(2, 0, 0),
+        out_axes=2,
+    )(field, north_wind, east_wind)

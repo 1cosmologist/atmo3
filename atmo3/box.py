@@ -2,6 +2,7 @@ import jax
 from functools import partial
 import jax.numpy as jnp
 import gc 
+import time
 
 from . import parallel_rng as rng
 from .grid_utils import GridWorkspace
@@ -29,25 +30,28 @@ class Box:
         
         self.rng_stream = rng.Parallel_rng(seedkey=self.seed, nsub=self.nsub)
 
-    # @partial(jax.jit, static_argnames=['self'])
     def _random_delta_k(self):
-        delta_k = self.rng_stream.generate(start=0, size=self.grid_wsp.cshape[0]*self.grid_wsp.cshape[1]*self.grid_wsp.cshape[2]) \
-                    + 1j * self.rng_stream.generate(start=0, size=self.grid_wsp.cshape[0]*self.grid_wsp.cshape[1]*self.grid_wsp.cshape[2])
+        size = self.grid_wsp.cshape[0]*self.grid_wsp.cshape[1]*self.grid_wsp.cshape[2]
+        
+        delta_k = self.rng_stream.generate(start=0, size=size) + 1j * self.rng_stream.generate(start=size, size=size)
         delta_k = jnp.reshape(delta_k, self.grid_wsp.cshape)
         delta_k.at[0,0,0].set(0. + 0.j)  # Set the DC mode to zero
         
         return delta_k
     
-    # @partial(jax.jit, static_argnames=['self'])
     def _apply_grid_transfer_function(self, delta_k):
+        
         spectrum_white = (2. * jnp.pi)**3 / (self.grid_wsp.N[0]*self.grid_wsp.N[1] * self.grid_wsp.N[2] * self.grid_wsp.d3k)  # Power spectrum of white noise
         transfer_function = jnp.sqrt(self.spectrum[1] / spectrum_white)
-        transfer_interp = self.grid_wsp.interp2kgrid(self.spectrum[0], transfer_function)
-        del transfer_function ; gc.collect()
+        
+        del spectrum_white ; gc.collect()
+        ks = self.spectrum[0]
+        
+        transfer_interp = self.grid_wsp.interp2kgrid(ks, transfer_function)
+        del ks, transfer_function ; gc.collect()
 
         return delta_k * transfer_interp
     
-    # @partial(jax.jit, static_argnames=['self'])
     def _rescale_field(self, field):
         
         # z = self.grid_wsp.grid_axis(2, altitude_axis=True)
@@ -59,10 +63,21 @@ class Box:
     def generate_field_fluctuations(self, time_step=0):
         self.rng_stream.set_seedkey(time_step)
         
+        t0 = time.perf_counter()
         delta_k = self._random_delta_k()
+        t1 = time.perf_counter()
+        print(f"Random field : {t1 - t0:.6f} s")
+        
         delta_k = self._apply_grid_transfer_function(delta_k)
         
+        t2 = time.perf_counter()
+        print(f"Apply P(k) : {t2 - t1:.6f} s")
+        
         delta_r = jnp.fft.irfftn(delta_k, s=self.grid_wsp.rshape)
+        
+        t3 = time.perf_counter()
+        print(f"IRFFT : {t3 - t2:.6f} s")
+        
         del delta_k ; gc.collect()
         
         # print(jnp.std(delta_r))
@@ -71,4 +86,7 @@ class Box:
         
         # print(jnp.all(jnp.isfinite(self.zscaling['f'])))
         self.field = self._rescale_field(self.field)
+        
+        t4 = time.perf_counter()
+        print(f"Rescaled field : {t4 - t3:.6f} s")
         

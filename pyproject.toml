@@ -4,7 +4,7 @@ requires = ['meson-python']
 
 [project]
 name = 'atmo3'
-version = '0.0.1.b0'
+version = '0.0.2.b0'
 description = 'Atmo(sphere) cube - a simulation cube for atmospheric emissions in the microwave'
 readme = 'README.md'
 requires-python = '>=3.12'

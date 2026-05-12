@@ -2,6 +2,7 @@ import jax.numpy as jnp
 import jax.random as rnd
 import jax
 import os
+from functools import partial
 
 class Parallel_rng:
     '''
@@ -24,45 +25,56 @@ class Parallel_rng:
             print('ERROR: mc must be an integer')
             exit()
 
-    def generate(self,**kwargs):
+    @staticmethod
+    @partial(jax.jit, static_argnames=('num_seqs', 'size', 'nsub', 'dtype', 'dist'))
+    def _jit_generate(prng_key, start_seqID, offset, num_seqs, size, nsub, dtype, dist):
+        # seqIDs built from dynamic start_seqID + static-length arange
+        seqIDs = start_seqID + jnp.arange(num_seqs)
+
+        keys = jax.vmap(rnd.fold_in, in_axes=(None, 0), out_axes=0)(prng_key, seqIDs)
+
+        if dist == 'normal':
+            all_blocks = jax.vmap(
+                lambda key: rnd.normal(key, dtype=dtype, shape=(nsub,))
+            )(keys)
+
+        # dynamic_slice: start_indices dynamic, slice_sizes static
+        flat = all_blocks.reshape(-1)
+        return jax.lax.dynamic_slice(flat, (offset,), (size,))
+
+    def generate(self, **kwargs):
 
         if self.force_no_gpu:
             _JAX_PLATFORM_NAME = jax.default_backend()
             jax.default_device("cpu")
 
-        start = kwargs.get('start',0)
-        size  = kwargs.get('size' ,1)
-        dist  = kwargs.get('dist','normal')
+        start = kwargs.get('start', 0)
+        size  = kwargs.get('size' , 1)
+        dist  = kwargs.get('dist' , 'normal')
 
-        # if self.dtype in [jnp.float64, jnp.complex128]:
         _JAX_X64_INITIAL_STATE = jax.config.read('jax_enable_x64')
         jax.config.update('jax_enable_x64', True)
 
-        end = start + size - 1
-
+        end         = start + size - 1
         start_seqID = start // self.nsub
         end_seqID   = end   // self.nsub
+        num_seqs    = int(end_seqID - start_seqID + 1)
+        offset      = start - start_seqID * self.nsub
 
-        seqIDs = jnp.arange(start_seqID, end_seqID+1)
+        seq = self._jit_generate(
+            self._PRNGkey,
+            jnp.int32(start_seqID),
+            jnp.int32(offset),
+            num_seqs,
+            int(size),
+            int(self.nsub),
+            self.dtype,
+            dist,
+        )
 
-        keys = jax.vmap(rnd.fold_in, in_axes=(None, 0), out_axes=0)(self._PRNGkey, seqIDs)
-
-        seq = jnp.zeros(0,dtype=self.dtype)
-
-        for seqID in seqIDs:
-
-            subseq_start = max(seqID * self.nsub, start) - seqID * self.nsub
-            subseq_end   = min((seqID+1) * self.nsub -1,end) - seqID * self.nsub
-
-            if dist == 'normal':
-                subseq = rnd.normal(keys[seqID], dtype=self.dtype, shape=(self.nsub,))
-
-            seq = jnp.concatenate((seq,subseq[subseq_start:subseq_end+1]))
-        
         if self.force_no_gpu:
             jax.default_device(_JAX_PLATFORM_NAME)
 
-        # if self.dtype in [jnp.float64, jnp.complex128, jnp.int64]:
         jax.config.update('jax_enable_x64', _JAX_X64_INITIAL_STATE)
 
         return seq
