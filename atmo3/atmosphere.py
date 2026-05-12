@@ -259,6 +259,155 @@ class Atmosphere:
             mean= {'h': self.super_grid.z, 'f': self.atm_calibrator.spec_humidity_profile*self.atm_calibrator.q2rho_h2o},
         )
 
+
+
+
+    def derive_cloud_mask(self, ccfile: str):
+        """
+        Derives a binary 3D cloud mask (0 or 1) based on the generated 
+        temperature and water vapor fields, calibrated against ERA5 cloud cover.
+        If temperature fluctuations are not generated, it uses the mean temperature profile.
+        
+        Parameters
+        ----------
+        ccfile : str
+            Path to the ERA5 cloud cover (.nc) file.
+            
+        Returns
+        -------
+        jnp.ndarray
+            A 3D binary array of shape [Nx, Ny, Nz] representing cloud presence.
+        """
+
+        import jax
+        import jax.numpy as jnp
+        import warnings
+        from atmo3 import atm_utils as au
+
+        # 1. Verify water vapor exists (this is mandatory)
+        if 'water vapor' not in self.components:
+            raise ValueError("The 'water vapor' component must be generated first.")
+
+        # 2. Interpolate the ERA5 cloud cover ratio to the simulation's altitude grid
+        cc_interp = self.super_grid.era5_interp2site(ccfile)
+
+        # 3. Reconstruct the TOTAL 3D Temperature field
+        if 'temperature' not in self.components:
+            print("Warning: 'temperature' component not found. Using the mean ERA5 temperature profile (no fluctuations) to derive the cloud mask.")
+            # Fallback to the mean profile already stored in the calibrator
+            t_total_3d = self.atm_calibrator.temperature_profile.reshape(1, 1, -1)
+        else:
+            t_mean_1d = self.component_mean['temperature']['f']
+            t_fluct_3d = self.components['temperature'].field
+            t_total_3d = t_fluct_3d + t_mean_1d.reshape(1, 1, -1)
+
+        # 4. Reconstruct the TOTAL 3D Water Vapor Density field (Mean + Fluctuations)
+        q_mean_1d = self.component_mean['water vapor']['f']
+        q_fluct_3d = self.components['water vapor'].field
+        q_total_3d = q_fluct_3d + q_mean_1d.reshape(1, 1, -1)
+
+        # 5. Calculate true 3D Relative Humidity
+        rh_total_3d = au.water_vapor_density_to_rel_humidity(rho_wv=q_total_3d, T=t_total_3d) * 100.0
+
+        # 6. Ultra-optimized JAX quantile thresholding
+        @jax.jit
+        def _compute_mask(rh_cube, cc_prof):
+            nz = rh_cube.shape[2]
+            
+            # Flatten spatial dimensions for map-reduce efficiency: (nz, nx*ny)
+            rh_flat = jnp.transpose(rh_cube, (2, 0, 1)).reshape(nz, -1)
+            
+            # Calculate target quantiles: if CC is 0.2, we want the top 20% (quantile 0.8)
+            q_targets = jnp.clip(1.0 - cc_prof, 0.0, 1.0)
+            
+            # Evaluate the exact threshold for all altitude layers simultaneously
+            layer_thresholds = jax.vmap(jnp.quantile)(rh_flat, q_targets)
+            
+            # Broadcast back to 3D shape (1, 1, nz)
+            thresholds_3d = layer_thresholds.reshape(1, 1, nz)
+            cc_3d = cc_prof.reshape(1, 1, nz)
+            
+            # Create binary mask: 1 if RH >= threshold AND ERA5 cc > 0, else 0
+            cloud_cube = jnp.where(cc_3d > 0.0, rh_cube >= thresholds_3d, 0)
+            
+            return cloud_cube.astype(jnp.int8) # int8 is sufficient for binary masks
+
+        # 7. Generate and store the mask
+        self.cloud_mask = _compute_mask(rh_total_3d, cc_interp)
+        
+        return self.cloud_mask
+
+    def derive_liquid_ice_cubes(self, ccfile: str, ciwcfile: str = None, clwcfile: str = None):
+        """
+        Generates 3D cubes of Cloud Ice Water Content (CIWC) and Cloud Liquid Water Content (CLWC).
+        The values are distributed only into voxels where the cloud mask is active.
+        
+        Parameters
+        ----------
+        ccfile : str
+            Path to the ERA5 cloud cover (.nc) file.
+        ciwcfile : str, optional
+            Path to the ERA5 cloud ice water content (.nc) file.
+        clwcfile : str, optional
+            Path to the ERA5 cloud liquid water content (.nc) file.
+            
+        Returns
+        -------
+        dict
+            A dictionary containing the generated 3D JAX arrays: {'ice': ice_cube, 'liquid': liquid_cube}
+        """
+
+        # 1. Get the 3D binary cloud mask (this inherently validates T and q as well)
+        # It will either generate it or use the cached one if already run.
+        if not hasattr(self, 'cloud_mask'):
+            self.derive_cloud_mask(ccfile)
+            
+        cloud_mask = self.cloud_mask
+
+        # 2. Get the 1D cloud cover ratio for the denominator
+        cc_interp = self.super_grid.era5_interp2site(ccfile)
+        
+        generated_cubes = {}
+
+        # 3. Process Cloud Ice Water Content
+        if ciwcfile is not None:
+            ciwc_interp = self.super_grid.era5_interp2site(ciwcfile)
+            
+            # Check if there is actually any ice in this profile
+            if jnp.all(ciwc_interp == 0.0):
+                print("Notice: No cloud ice water found in the profile. Ice cube will not be generated.")
+            else:
+                # Calculate in-cloud concentration: ciwc / cc
+                # Use jnp.where to prevent divide-by-zero errors in clear-sky layers
+                ice_ratio_1d = jnp.where(cc_interp > 0.0, ciwc_interp / cc_interp, 0.0)
+                
+                # Map 1D profile across the active 3D cloud voxels
+                self.ice_cube = cloud_mask * ice_ratio_1d.reshape(1, 1, -1)
+                generated_cubes['ice'] = self.ice_cube
+
+        # 4. Process Cloud Liquid Water Content
+        if clwcfile is not None:
+            clwc_interp = self.super_grid.era5_interp2site(clwcfile)
+            
+            # Check if there is actually any liquid in this profile
+            if jnp.all(clwc_interp == 0.0):
+                print("Notice: No cloud liquid water found in the profile. Liquid cube will not be generated.")
+            else:
+                # Calculate in-cloud concentration: clwc / cc
+                # Use jnp.where to prevent divide-by-zero errors in clear-sky layers
+                liquid_ratio_1d = jnp.where(cc_interp > 0.0, clwc_interp / cc_interp, 0.0)
+                
+                # Map 1D profile across the active 3D cloud voxels
+                self.liquid_cube = cloud_mask * liquid_ratio_1d.reshape(1, 1, -1)
+                generated_cubes['liquid'] = self.liquid_cube
+
+        # 5. Final check
+        if not generated_cubes:
+            print("Warning: Neither ice nor liquid cubes were generated. (Files were missing or empty).")
+
+        return generated_cubes
+
+
     def generate_realization(
         self,
         time_step: int = 0,
