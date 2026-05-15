@@ -9,3 +9,4 @@ from .observation import *
 from .obs_utils import *
 from .parallel_rng import *
 from .power import *
+from .ice_emission import *

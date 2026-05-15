@@ -134,6 +134,53 @@ def B_nu_T(nu_in_GHz, T_bb):
 
 
 @jax.jit
+def compute_tau_zenith(T, P, rho_w, dz, freqs_in_GHz):
+    """
+    Computes the cumulative zenith optical depth (tau_zenith) from the ground up.
+    
+    Parameters
+    ----------
+    T : jnp.ndarray
+        1D array of shape (Nz,) - Temperature profile in K.
+    P : jnp.ndarray
+        1D array of shape (Nz,) - Pressure profile in Pa.
+    rho_w : jnp.ndarray
+        1D array of shape (Nz,) - Water vapor density profile in kg/m^3.
+    dz : jnp.ndarray
+        1D array of shape (Nz,) - Vertical thickness of each layer in meters.
+    freqs_in_GHz : jnp.ndarray
+        1D array of shape (Nf,) - Observation frequencies.
+        
+    Returns
+    -------
+    tau_zenith : jnp.ndarray
+        2D array of shape (Nz, Nf) representing the cumulative zenith optical depth 
+        from the ground up to the top of each cell.
+    """
+    
+    # 1. Vectorize point-wise attenuation over the vertical altitude axis (axis 0)
+    # The inner compute_attenuation_point outputs gamma_dry and gamma_wet of shape (Nf,)
+    # By mapping over (Nz,), the vmap outputs arrays of shape (Nz, Nf)
+    gamma_dry, gamma_wet = jax.vmap(
+        lambda t, p, rho: compute_attenuation_point(t, p, rho, freqs_in_GHz),
+        in_axes=(0, 0, 0)
+    )(T, P, rho_w)
+    
+    # Total specific attenuation in dB/km (Shape: Nz, Nf)
+    gamma_gas = gamma_dry + gamma_wet
+    
+    # 2. Convert specific attenuation (dB/km) to optical depth per layer (Nepers)
+    # Broadcast dz from (Nz,) to (Nz, 1) to multiply against the (Nz, Nf) gamma array.
+    # Formula: tau = gamma * (dz_in_km) * (ln(10) / 10)
+    d_tau = gamma_gas * (dz[:, None] / 1000.0) * (jnp.log(10.0) / 10.0)
+    
+    # 3. Integrate vertically (cumulative sum from ground z=0 up to layer z)
+    # Shape remains (Nz, Nf)
+    tau_zenith = jnp.cumsum(d_tau, axis=0)
+    
+    return tau_zenith
+
+@jax.jit
 def compute_attenuation_los(T_los, P_los, rho_los, freqs_in_GHz):
     # T_los, P_los, rho_los have shape (n_scans, n_los)
     # We vmap over n_scans (axis 0) and then n_los (axis 0 in the inner fn)

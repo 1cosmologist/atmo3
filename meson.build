@@ -48,6 +48,7 @@ py_sources = [
     'atmo3/cube.py',
     'atmo3/emission.py',
     'atmo3/grid_utils.py',
+    'atmo3/ice_emission.py',
     'atmo3/multihost_fft.py',
     'atmo3/obs_utils.py',
     'atmo3/observation.py',

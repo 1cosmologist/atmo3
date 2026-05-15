@@ -26,7 +26,10 @@ class AtmosphereCalibrator:
     def __init__(self, 
             super_grid: type[sg.SuperGrid] = None, 
             temperature_file: str = None, 
-            sp_humidity_file: str = None, 
+            sp_humidity_file: str = None,
+            cc_file: str = None,           # <-- NEW
+            ciwc_file: str = None,         # <-- NEW
+            clwc_file: str = None,         # <-- NEW 
             apexdatafile: str = None
     ) -> None :
         """
@@ -41,6 +44,12 @@ class AtmosphereCalibrator:
             Path to an ERA5 temperature NetCDF file.  Used to compute
             both the mean temperature profile and the RMS temperature-
             fluctuation profile.
+        cc_file : str, optional
+            Path to an ERA5 cloud cover NetCDF file.
+        ciwc_file : str, optional
+            Path to an ERA5 cloud ice water content NetCDF file.
+        clwc_file : str, optional
+            Path to an ERA5 cloud liquid water content NetCDF file.
         sp_humidity_file : str, optional
             Path to an ERA5 specific-humidity NetCDF file.  Used to
             compute the mean specific-humidity profile.
@@ -88,6 +97,10 @@ class AtmosphereCalibrator:
         self.pressure = super_grid.pressure
         self.temperature_profile = super_grid.era5_interp2site(temperature_file)
         self.spec_humidity_profile = super_grid.era5_interp2site(sp_humidity_file)
+
+        self.cc_profile = super_grid.era5_interp2site(cc_file) if cc_file is not None else None
+        self.ciwc_profile = super_grid.era5_interp2site(ciwc_file) if ciwc_file is not None else None
+        self.clwc_profile = super_grid.era5_interp2site(clwc_file) if clwc_file is not None else None
 
         self.vir_temperature = au.virtual_temperature(self.temperature_profile, self.spec_humidity_profile)
         self.q2rho_h2o = self.pressure / (const.R_dry_air * self.vir_temperature)

@@ -11,16 +11,28 @@ c = constants.c
 
 def create_constant_ice_layer(altitudes, layer_bottom, layer_top, ice_density):
     """
-    Create a constant ice layer with specified density between given altitudes.
+    Build a one-dimensional ice-particle density profile with a constant value
+    between two altitude bounds.
 
-    Parameters:
-    altitudes (numpy array): Array of altitude values in meters.
-    layer_bottom (float): Bottom altitude of the ice layer in meters.
-    layer_top (float): Top altitude of the ice layer in meters.
-    ice_density (float): Density of ice particles in particles/m^3.
+    The profile is zero outside the requested layer and equal to
+    ``ice_density`` inside the layer, inclusive of the boundary values.
 
-    Returns:
-    numpy array: Array of particle densities corresponding to the input altitudes.
+    Parameters
+    ----------
+    altitudes : numpy.ndarray
+        One-dimensional altitude grid in meters.
+    layer_bottom : float
+        Lower altitude bound of the ice layer in meters.
+    layer_top : float
+        Upper altitude bound of the ice layer in meters.
+    ice_density : float
+        Constant particle density assigned inside the layer, in particles m^-3.
+
+    Returns
+    -------
+    numpy.ndarray
+        Array with the same shape as ``altitudes`` containing the ice-particle
+        density profile.
     """
     n = np.zeros_like(altitudes)  # Initialize an array of zeros
     in_layer = (altitudes >= layer_bottom) & (altitudes <= layer_top)  # Find indices within the layer
@@ -29,15 +41,26 @@ def create_constant_ice_layer(altitudes, layer_bottom, layer_top, ice_density):
 
 def sigma_scattering(frequency, volume, A):
     """
-    Calculate the scattering cross section for ice crystals.
-    
-    #Parameters:
-    frequency (float): The frequency of the incident light (in Hz).
-    volume (float): The volume of the ice crystal particle (in m^3).
-    A (float): A constant that depends on the properties of the ice crystal (dielectric properties, shape, polarizability).
-    
-    Returns:
-    float: The scattering cross section (in m^2).
+    Compute the Rayleigh scattering cross section of a small ice particle.
+
+    This implements the standard dipole-limit expression used throughout the
+    module, where the scattering scales with frequency to the fourth power and
+    with the square of the particle volume.
+
+    Parameters
+    ----------
+    frequency : float
+        Incident frequency in hertz.
+    volume : float
+        Particle volume in cubic meters.
+    A : complex
+        Complex particle polarizability-like coefficient controlling the
+        scattering strength.
+
+    Returns
+    -------
+    float
+        Scattering cross section in square meters.
     """
     w = 2 * pi * frequency #angular frequency
 
@@ -47,15 +70,26 @@ def sigma_scattering(frequency, volume, A):
 
 def sigma_absorption(frequency, volume, A):
     """
-    Calculate the absorption cross section for ice crystals.
-    
-    #Parameters:
-    frequency (float): The frequency of the incident light (in Hz).
-    volume (float): The volume of the ice crystal particle (in m^3).
-    A (float): A constant that depends on the properties of the ice crystal (dielectric properties, shape, polarizability).
-    
-    Returns:
-    float: The absorption cross section (in m^2).
+    Compute the Rayleigh absorption cross section of a small ice particle.
+
+    The absorption term depends on the imaginary part of the complex
+    polarizability coefficient and scales linearly with both frequency and
+    particle volume.
+
+    Parameters
+    ----------
+    frequency : float
+        Incident frequency in hertz.
+    volume : float
+        Particle volume in cubic meters.
+    A : complex
+        Complex particle polarizability-like coefficient controlling the
+        absorption strength.
+
+    Returns
+    -------
+    float
+        Absorption cross section in square meters.
     """
     w = 2 * pi * frequency #angular frequency
 
@@ -75,9 +109,24 @@ import scipy.constants as constants
 
 def compute_depolarization_factor(aspect_ratio):
     """
-    Calculates the depolarization factor (Delta) for the SYMMETRY axis 
-    of a spheroid based on its aspect ratio. 
-    Always returns a 1D numpy array.
+    Compute the depolarization factor along the symmetry axis of a spheroid.
+
+    The function supports spheres, prolate spheroids (columns), and oblate
+    spheroids (plates). The returned value is the depolarization factor of the
+    symmetry axis used in the polarizability expressions below.
+
+    Parameters
+    ----------
+    aspect_ratio : float or array-like
+        Ratio of the symmetry-axis length to the perpendicular-axis length.
+        Values greater than 1 correspond to prolate particles, values less than
+        1 correspond to oblate particles, and 1 corresponds to a sphere.
+
+    Returns
+    -------
+    numpy.ndarray
+        One-dimensional array of depolarization factors, one per input aspect
+        ratio.
     """
     m = np.atleast_1d(aspect_ratio).flatten()
     delta = np.zeros_like(m, dtype=float)
@@ -100,7 +149,27 @@ def compute_depolarization_factor(aspect_ratio):
     return delta
 
 def compute_intrinsic_polarizabilities(frequency, aspect_ratio):
-    """Computes inherent polarizabilities. Output shape: (Nm, Nf)."""
+    """
+    Compute intrinsic polarizability factors before geometric projection.
+
+    The function evaluates the complex dielectric response of ice and returns
+    the parallel and perpendicular polarizability components for each
+    combination of aspect ratio and frequency.
+
+    Parameters
+    ----------
+    frequency : float or array-like
+        Frequencies in hertz.
+    aspect_ratio : float or array-like
+        Particle aspect ratio(s). See :func:`compute_depolarization_factor` for
+        the interpretation of the values.
+
+    Returns
+    -------
+    tuple of numpy.ndarray
+        ``(A_par, A_perp)`` with shape ``(Nm, Nf)`` each, where ``Nm`` is the
+        number of aspect ratios and ``Nf`` is the number of frequencies.
+    """
     freq = np.atleast_1d(frequency).flatten()
     m = np.atleast_1d(aspect_ratio).flatten()
     
@@ -121,7 +190,30 @@ def compute_intrinsic_polarizabilities(frequency, aspect_ratio):
 
 def compute_effective_polarizability(frequency, aspect_ratio, elevation, stokes_param='I'):
     """
-    Projects polarizabilities onto the telescope. Output shape: (Nm, Nf).
+    Project intrinsic polarizabilities onto the telescope line of sight.
+
+    This combines the parallel and perpendicular particle responses into an
+    effective quantity for either Stokes ``I`` or ``Q`` at a given elevation
+    angle. The projection is vectorized over aspect ratio and frequency.
+
+    Parameters
+    ----------
+    frequency : float or array-like
+        Frequencies in hertz.
+    aspect_ratio : float or array-like
+        Particle aspect ratio(s).
+    elevation : float
+        Telescope elevation angle in degrees.
+    stokes_param : {'I', 'Q'}, optional
+        Stokes component to compute. ``'I'`` returns the total intensity
+        response and ``'Q'`` returns the linear polarization contrast.
+
+    Returns
+    -------
+    tuple of numpy.ndarray
+        ``(eff_abs2, eff_imag)`` with shape ``(Nm, Nf)``. The first array is
+        the effective squared magnitude of the polarizability and the second is
+        the effective imaginary component.
     """
     m = np.atleast_1d(aspect_ratio).flatten()
     A_par, A_perp = compute_intrinsic_polarizabilities(frequency, m) # Shapes: (Nm, Nf)
@@ -171,8 +263,23 @@ def compute_effective_polarizability(frequency, aspect_ratio, elevation, stokes_
 
 def compute_polarizability(frequency, aspect_ratio=1.0):
     """
-    Vectorized computation of complex polarizabilities (alpha_h, alpha_v) 
-    Output shape: (Nm, Nf)
+    Compute complex horizontal and vertical polarizabilities.
+
+    This function converts the intrinsic polarizabilities into the
+    horizontal and vertical coefficients from the polarizability tensor that can be used in the phase matrix
+    calculations for the scattering-plane and Earth-frame methods.
+
+    Parameters
+    ----------
+    frequency : float or array-like
+        Frequencies in hertz.
+    aspect_ratio : float or array-like, optional
+        Particle aspect ratio(s). Default is ``1.0`` for a sphere.
+
+    Returns
+    -------
+    tuple of numpy.ndarray
+        ``(alpha_h, alpha_v)`` with shape ``(Nm, Nf)`` each.
     """
     freq = np.atleast_1d(frequency).flatten()
     m = np.atleast_1d(aspect_ratio).flatten()
@@ -220,13 +327,43 @@ def compute_polarizability(frequency, aspect_ratio=1.0):
 
 def compute_T_RJ_ice2(frequency, altitudes, Temperature, Pressure, P_water, elevation, ice_density, radius_eq, aspect_ratio=1.0, process='total', stokes_param='I'):
     """
-    Computes TRJ using macroscopic fractions.
-    
-    Returns:
-    ndarray: Array of shape (Nf, Na, Nm)
-             Nf = Frequencies
-             Na = Equivalent Radii
-             Nm = Aspect Ratios
+    Compute Rayleigh-Jeans brightness temperature using the SPT formulation.
+
+    The implementation combines atmospheric attenuation, ice scattering, and
+    ice absorption/emission layer by layer. It supports scalar or vector inputs
+    for frequency, equivalent radius, and aspect ratio, and returns the result
+    with dimensions ordered as ``(Nf, Na, Nm)``.
+
+    Parameters
+    ----------
+    frequency : float or array-like
+        Frequency or frequencies in hertz.
+    altitudes : numpy.ndarray
+        One-dimensional altitude grid in meters.
+    Temperature : numpy.ndarray
+        Physical temperature profile on the altitude grid in kelvin.
+    Pressure : numpy.ndarray
+        Atmospheric pressure profile on the altitude grid.
+    P_water : numpy.ndarray
+        Water-vapor partial pressure profile on the altitude grid.
+    elevation : float
+        Telescope elevation angle in degrees.
+    ice_density : float or array-like
+        Ice-particle number density profile in particles m^-3. A scalar is
+        broadcast over altitude.
+    radius_eq : float or array-like
+        Equivalent particle radius values in meters.
+    aspect_ratio : float or array-like, optional
+        Particle aspect ratio(s). Default is ``1.0``.
+    process : {'total', 'scattering', 'emission'}, optional
+        Select which physical contribution to return.
+    stokes_param : {'I', 'Q'}, optional
+        Polarization channel to compute.
+
+    Returns
+    -------
+    numpy.ndarray
+        Brightness temperature array with shape ``(Nf, Na, Nm)``.
     """
     c = constants.c
     
@@ -332,6 +469,38 @@ def compute_T_RJ_ice2(frequency, altitudes, Temperature, Pressure, P_water, elev
 # ====================================================================
 
 def compute_earth_frame_phase_matrix(alpha_h, alpha_v, theta_grid, phi_grid, delta):
+    """
+    Compute the phase matrix elements in the Earth-frame convention.
+
+    This formulation projects the particle polarizability tensor directly onto
+    the observation geometry defined by ``theta_grid`` and ``phi_grid``.
+    All inputs are broadcast together, so the output shape is the common
+    broadcast shape of the array inputs.
+
+    Parameters
+    ----------
+    alpha_h : numpy.ndarray
+        Horizontal polarizability array. Typical shape is ``(Nm, Nf)`` or
+        ``(..., Nf)`` when pre-expanded for broadcasting.
+    alpha_v : numpy.ndarray
+        Vertical polarizability array. Must be broadcast-compatible with
+        ``alpha_h``.
+    theta_grid : numpy.ndarray
+        Polar angle grid in radians. Typical shape is ``(N_theta, N_phi)`` or
+        ``(1, 1, N_theta, N_phi)`` when pre-broadcast.
+    phi_grid : numpy.ndarray
+        Azimuth angle grid in radians. Must be broadcast-compatible with
+        ``theta_grid``.
+    delta : float
+        Telescope elevation angle in radians, usually a scalar.
+
+    Returns
+    -------
+    tuple of numpy.ndarray
+        ``(M11_earth, M21_earth)`` with the broadcast shape of the inputs.
+        In the main core routine this is typically ``(Nf, Nm, N_theta,
+        N_phi)`` after pre-expanding the frequency and aspect-ratio axes.
+    """
     abs_h2 = np.abs(alpha_h)**2
     abs_v2 = np.abs(alpha_v)**2
     
@@ -347,6 +516,39 @@ def compute_earth_frame_phase_matrix(alpha_h, alpha_v, theta_grid, phi_grid, del
     return M11_earth, M21_earth
 
 def compute_scattering_plane_phase_matrix(alpha_h, alpha_v, theta_grid, phi_grid, delta):
+    """
+    Compute the phase matrix elements in the scattering-plane convention.
+
+    The function builds the orthonormal basis of the scattering plane for each
+    incident direction, applies the particle response tensor, and returns the
+    two matrix elements needed by the Stokes-vector integration. All inputs are
+    broadcast together, so the output shape is the common broadcast shape of
+    the array inputs.
+
+    Parameters
+    ----------
+    alpha_h : numpy.ndarray
+        Horizontal polarizability array. Typical shape is ``(Nm, Nf)`` or
+        ``(..., Nf)`` when pre-expanded for broadcasting.
+    alpha_v : numpy.ndarray
+        Vertical polarizability array. Must be broadcast-compatible with
+        ``alpha_h``.
+    theta_grid : numpy.ndarray
+        Polar angle grid in radians. Typical shape is ``(N_theta, N_phi)`` or
+        ``(1, 1, N_theta, N_phi)`` when pre-broadcast.
+    phi_grid : numpy.ndarray
+        Azimuth angle grid in radians. Must be broadcast-compatible with
+        ``theta_grid``.
+    delta : float
+        Telescope elevation angle in radians, usually a scalar.
+
+    Returns
+    -------
+    tuple of numpy.ndarray
+        ``(M11_rotated, M21_rotated)`` with the broadcast shape of the inputs.
+        In the main core routine this is typically ``(Nf, Nm, N_theta,
+        N_phi)`` after pre-expanding the frequency and aspect-ratio axes.
+    """
     s_i = np.stack([-np.sin(theta_grid) * np.cos(phi_grid), 
                     -np.sin(theta_grid) * np.sin(phi_grid), 
                     -np.cos(theta_grid)], axis=-1)
@@ -391,8 +593,40 @@ def compute_scattering_plane_phase_matrix(alpha_h, alpha_v, theta_grid, phi_grid
 def compute_T_in(theta_grid, z_layers, altitudes, T_phys_profile, T_ground, tau_above_atm_f, tau_below_atm_f, 
                  consider_earth_curvature=True, consider_atmospheric_emission=True):
     """
-    Computes the incoming brightness temperature for a SINGLE frequency.
-    Shape generated: (Nz, N_theta, N_phi) - extremely memory efficient.
+    Compute the incoming brightness temperature field seen by an ice layer.
+
+    The result is evaluated for one frequency at a time and returns a 3D array
+    over altitude layers and angular coordinates. The function can account for
+    atmospheric emission, ground emission, and Earth curvature effects.
+
+    Parameters
+    ----------
+    theta_grid : numpy.ndarray
+        Polar-angle grid in radians, typically created by ``meshgrid``.
+    z_layers : numpy.ndarray
+        Layer-center altitudes in meters.
+    altitudes : numpy.ndarray
+        One-dimensional altitude grid in meters.
+    T_phys_profile : numpy.ndarray
+        Physical temperature profile on the altitude grid in kelvin.
+    T_ground : float
+        Ground brightness temperature in kelvin.
+    tau_above_atm_f : numpy.ndarray
+        Cumulative atmospheric optical depth above each layer for the selected
+        frequency.
+    tau_below_atm_f : numpy.ndarray
+        Cumulative atmospheric optical depth below each layer for the selected
+        frequency.
+    consider_earth_curvature : bool, optional
+        If ``True``, use a curved-Earth limb geometry; otherwise use a flat-
+        Earth split between sky and ground.
+    consider_atmospheric_emission : bool, optional
+        If ``True``, include atmospheric self-emission and ground attenuation.
+
+    Returns
+    -------
+    numpy.ndarray
+        Incoming brightness temperature with shape ``(Nz, N_theta, N_phi)``.
     """
     R_e = 6371e3
     
@@ -452,6 +686,50 @@ def compute_T_in(theta_grid, z_layers, altitudes, T_phys_profile, T_ground, tau_
 def _compute_T_RJ_ice_CLASS_core(frequency, altitudes, Temperature, Pressure, P_water, elevation, ice_density, 
                                  radius_eq, aspect_ratio, stokes_param, 
                                  consider_earth_curvature, consider_atmospheric_emission, method):
+    """
+    Shared engine for the class-based Rayleigh-Jeans ice-scattering methods.
+
+    This routine evaluates the full angular integral using either the
+    Earth-frame phase matrix or the scattering-plane phase matrix, then sums
+    the layer contributions into a brightness-temperature cube ordered as
+    ``(Nf, Na, Nm)``.
+
+    Parameters
+    ----------
+    frequency : float or array-like
+        Frequencies in hertz.
+    altitudes : numpy.ndarray
+        One-dimensional altitude grid in meters.
+    Temperature : numpy.ndarray
+        Atmospheric temperature profile in kelvin.
+    Pressure : numpy.ndarray
+        Atmospheric pressure profile.
+    P_water : numpy.ndarray
+        Water-vapor partial pressure profile.
+    elevation : float
+        Telescope elevation angle in degrees.
+    ice_density : float or array-like
+        Ice-particle number density profile or scalar value.
+    radius_eq : float or array-like
+        Equivalent particle radius values in meters.
+    aspect_ratio : float or array-like
+        Particle aspect ratio(s).
+    stokes_param : {'I', 'Q'}
+        Stokes channel to integrate.
+    consider_earth_curvature : bool
+        If ``True``, use the curved-Earth limb model in the sky-temperature
+        integral.
+    consider_atmospheric_emission : bool
+        If ``True``, include atmospheric emission in the incoming field.
+    method : {1, 2}
+        Phase-matrix convention selector. ``1`` uses the direct Earth-frame
+        projection; ``2`` uses the scattering-plane formulation.
+
+    Returns
+    -------
+    numpy.ndarray
+        Brightness temperature array with shape ``(Nf, Na, Nm)``.
+    """
     c = constants.c
     delta = np.radians(elevation)
     
@@ -556,8 +834,15 @@ def compute_T_RJ_ice_CLASS1(frequency, altitudes, Temperature, Pressure, P_water
                             radius_eq, aspect_ratio=1.0, stokes_param='I',
                             consider_earth_curvature=True, consider_atmospheric_emission=True):
     """ 
-    Computes brightness temperature using METHOD 1 (Direct Earth Frame Projection). 
-    Returns: ndarray of shape (Nf, Na, Nm)
+    Compute brightness temperature using the Earth-frame phase-matrix method.
+
+    This is a thin wrapper around :func:`_compute_T_RJ_ice_CLASS_core` that
+    selects the direct Earth-frame projection convention.
+
+    Returns
+    -------
+    numpy.ndarray
+        Brightness temperature array with shape ``(Nf, Na, Nm)``.
     """
     return _compute_T_RJ_ice_CLASS_core(
         frequency, altitudes, Temperature, Pressure, P_water, elevation, 
@@ -569,8 +854,15 @@ def compute_T_RJ_ice_CLASS2(frequency, altitudes, Temperature, Pressure, P_water
                             radius_eq, aspect_ratio=1.0, stokes_param='I',
                             consider_earth_curvature=True, consider_atmospheric_emission=True):
     """ 
-    Computes brightness temperature using METHOD 2 (Textbook Scattering Plane Rotation). 
-    Returns: ndarray of shape (Nf, Na, Nm)
+    Compute brightness temperature using the scattering-plane method.
+
+    This is a thin wrapper around :func:`_compute_T_RJ_ice_CLASS_core` that
+    selects the textbook scattering-plane rotation convention.
+
+    Returns
+    -------
+    numpy.ndarray
+        Brightness temperature array with shape ``(Nf, Na, Nm)``.
     """
     return _compute_T_RJ_ice_CLASS_core(
         frequency, altitudes, Temperature, Pressure, P_water, elevation, 
