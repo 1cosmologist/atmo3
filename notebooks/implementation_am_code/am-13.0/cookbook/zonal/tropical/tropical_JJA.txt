@@ -1,0 +1,67 @@
+# The profiles in this file were derived from NASA MERRA2 reanalysis
+# data, temporally and spatially averaged using the Giovanni online
+# data system developed and maintained by the NASA Goddard Earth
+# Sciences Data and Information Services Center (GES DISC).
+#
+# The following files were averaged over JJA:
+#
+#  g4.curtainTime.M2IMNPASM_5_12_4_T.20061201-20161130.180W_23S_180E_23N.nc
+#  g4.curtainTime.M2IMNPASM_5_12_4_QV.20061201-20161130.180W_23S_180E_23N.nc
+#  g4.curtainTime.M2IMNPASM_5_12_4_O3.20061201-20161130.180W_23S_180E_23N.nc
+#  g4.curtainTime.M2IMNPASM_5_12_4_H.20061201-20161130.180W_23S_180E_23N.nc
+#
+# MERRA references:
+#   M. M. Rienecker et al. (2011), MERRA: NASA's Modern-Era Retrospective
+#   Analysis for Research and Applications. J. Climate 24:3624.
+#
+#   A. Molod et al (2015), Development of the GEOS-5 atmospheric general
+#   circulation model: evolution from MERRA to MERRA2.  Geoscience Model
+#   Development 8:1339.
+#
+# MERRA is produced by the NASA/Goddard Global Modeling and Assimilation
+# Office (GMAO).  MERRA data are archived and distributed by the
+# GES DISC.
+#
+#  P[mb]     T[K]    xH2O[ppm]     xO3[ppm]     H[m]
+  1000.0    297.6   2.4078e+04   2.6696e-02    113.2
+   975.0    295.9   2.3437e+04   2.7041e-02    333.6
+   950.0    294.5   2.2304e+04   2.7680e-02    558.7
+   925.0    293.1   2.0881e+04   2.8490e-02    789.3
+   900.0    291.9   1.9185e+04   2.9451e-02   1025.6
+   875.0    291.0   1.7246e+04   3.0583e-02   1267.6
+   850.0    290.1   1.5336e+04   3.1769e-02   1515.7
+   825.0    289.2   1.3645e+04   3.2927e-02   1770.1
+   800.0    288.0   1.2206e+04   3.4035e-02   2031.3
+   775.0    286.8   1.0990e+04   3.5055e-02   2299.5
+   750.0    285.3   9.9818e+03   3.5940e-02   2575.2
+   725.0    283.8   9.0826e+03   3.6759e-02   2858.6
+   700.0    282.2   8.2358e+03   3.7558e-02   3150.2
+   650.0    279.0   6.8192e+03   3.9036e-02   3760.4
+   600.0    275.6   5.5507e+03   4.0354e-02   4411.6
+   550.0    271.9   4.3821e+03   4.1558e-02   5109.8
+   500.0    267.7   3.2804e+03   4.2683e-02   5863.6
+   450.0    263.0   2.3730e+03   4.3650e-02   6683.1
+   400.0    257.4   1.6235e+03   4.4496e-02   7580.2
+   350.0    250.9   1.0963e+03   4.5072e-02   8574.3
+   300.0    242.5   6.2857e+02   4.5773e-02   9686.9
+   250.0    232.3   2.9425e+02   4.6848e-02  10956.5
+   200.0    219.9   9.3577e+01   4.9504e-02  12432.5
+   150.0    206.0   1.9273e+01   6.1923e-02  14226.6
+   100.0    195.5   4.9542e+00   1.5943e-01  16591.9
+    70.0    201.7   4.1780e+00   6.2400e-01  18658.5
+    50.0    208.9   3.9785e+00   1.6341e+00  20681.8
+    40.0    212.5   4.1127e+00   2.6554e+00  22057.2
+    30.0    216.8   4.2982e+00   4.3760e+00  23865.5
+    20.0    222.3   4.4313e+00   7.0673e+00  26470.1
+    10.0    229.2   4.7265e+00   9.0692e+00  31054.2
+     7.0    233.7   5.0346e+00   8.9152e+00  33468.0
+     5.0    239.2   5.4081e+00   8.3980e+00  35792.5
+     4.0    243.0   5.6439e+00   7.8177e+00  37368.1
+     3.0    247.7   5.9039e+00   6.7873e+00  39435.6
+     2.0    255.1   6.1577e+00   5.0855e+00  42416.6
+     1.0    263.4   6.5036e+00   3.0881e+00  47700.0
+     0.7    260.8   6.6512e+00   2.4000e+00  50441.1
+     0.5    253.9   6.7555e+00   1.9098e+00  52980.8
+     0.4    248.7   6.8015e+00   1.6484e+00  54621.4
+     0.3    242.4   6.8322e+00   1.4286e+00  56690.3
+     0.1    219.3   6.6782e+00   1.6020e+00  64138.1

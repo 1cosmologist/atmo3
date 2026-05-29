@@ -1,0 +1,17 @@
+The files in this directory are am model configuration files for various
+astronomical observing sites, for different seasons and water vapor percentile
+profiles.  They are based on climatological statistics derived from the NASA
+MERRA-2 reanalysis.  For more background information and references, see the
+the model for Mauna Kea presented as Example 2.5 in the am manual.
+
+In each directory here, the file names are of the form
+
+    site_season_percentile.amc
+
+where site is the location; season is either "annual" for year-round
+statistics or DJF for (December, January, February), MAM for (March, April,
+May), etc.; and percentile is the water vapor profile percentile.  Note that
+water vapor mixing ratio statistics have been computed independently for each
+pressure level, without explicitly accounting for correlations between levels,
+but this is expected to be realistic in the sense that the integrated PWV for
+a given percentile profile will be close to the corresponding PWV percentile.

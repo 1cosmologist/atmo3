@@ -1,0 +1,128 @@
+# file CIRA-86_mid_12.2km.amc - mid-latitude profile, starting from 12.2 km
+# altitude for comparison with the O2 zenith absorption data in Reber,
+# JGR 77_3831 (July 1972).  The paper does not give flight pressure altitude,
+# but states that the measurements were made during the summer.  So, the
+# P,T profile here is from the CIRA-86 table for July at 35 deg. N
+# latitude, with the base pressure and temperature interpolated to 12200 m.
+#
+f 40 GHz  80 GHz  2.0 MHz
+output f GHz  tau dB
+za 0 deg
+tol 0
+
+T0 2.7 K
+#
+# Layer pressures and temperatures here are interpolated from the CIRA-86
+# reference atmosphere for July, for 35 deg N latitude.
+#
+# Reference:
+#
+#   Committee on Space Research (COSPAR). The COSPAR International Atmosphere
+#   (CIRA-86), [Internet]. NCAS British Atmospheric Data Centre, 2006-2011.
+#   Available from
+#     http://badc.nerc.ac.uk/view/badc.nerc.ac.uk__ATOM__dataent_CIRA .
+#
+layer
+Pbase  0 mbar  # z = 0.00 km
+Tbase  234.54 K
+
+layer
+Pbase 10.350 mbar  # z = 31.31 km
+Tbase 234.540 K
+column dry_air vmr
+
+layer
+Pbase 20.700 mbar  # z = 26.64 km
+Tbase 225.752 K
+column dry_air vmr
+
+layer
+Pbase 31.050 mbar  # z = 23.95 km
+Tbase 220.973 K
+column dry_air vmr
+
+layer
+Pbase 41.400 mbar  # z = 22.14 km
+Tbase 218.124 K
+column dry_air vmr
+
+layer
+Pbase 51.750 mbar  # z = 20.72 km
+Tbase 215.672 K
+column dry_air vmr
+
+layer
+Pbase 62.100 mbar  # z = 19.60 km
+Tbase 213.471 K
+column dry_air vmr
+
+layer
+Pbase 72.450 mbar  # z = 18.67 km
+Tbase 211.435 K
+column dry_air vmr
+
+layer
+Pbase 82.800 mbar  # z = 17.81 km
+Tbase 209.457 K
+column dry_air vmr
+
+layer
+Pbase 93.150 mbar  # z = 17.14 km
+Tbase 208.700 K
+column dry_air vmr
+
+layer
+Pbase 103.500 mbar  # z = 16.48 km
+Tbase 207.986 K
+column dry_air vmr
+
+layer
+Pbase 113.850 mbar  # z = 15.91 km
+Tbase 208.422 K
+column dry_air vmr
+
+layer
+Pbase 124.200 mbar  # z = 15.40 km
+Tbase 209.388 K
+column dry_air vmr
+
+layer
+Pbase 134.550 mbar  # z = 14.88 km
+Tbase 210.354 K
+column dry_air vmr
+
+layer
+Pbase 144.900 mbar  # z = 14.44 km
+Tbase 211.909 K
+column dry_air vmr
+
+layer
+Pbase 155.250 mbar  # z = 14.03 km
+Tbase 213.656 K
+column dry_air vmr
+
+layer
+Pbase 165.600 mbar  # z = 13.62 km
+Tbase 215.402 K
+column dry_air vmr
+
+layer
+Pbase 175.950 mbar  # z = 13.21 km
+Tbase 217.149 K
+column dry_air vmr
+
+layer
+Pbase 186.300 mbar  # z = 12.87 km
+Tbase 219.112 K
+column dry_air vmr
+
+layer
+Pbase 196.650 mbar  # z = 12.54 km
+Tbase 221.077 K
+column dry_air vmr
+
+layer
+Pbase 207.000 mbar  # z = 12.20 km
+Tbase 223.043 K
+column dry_air vmr
+

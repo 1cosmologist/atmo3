@@ -1,0 +1,84 @@
+# File point2point.amc
+#
+# A simple (no ozone, no stratospheric H2O) config file for use
+# as a point-to-point propagation and refraction utility.  The
+# atmosphere follows the US standard atmosphere temperature
+# profile, with constant relative humidity in the troposphere as
+# specified by the user.  The propagation path is defined by
+# source and observer height, observer zenith angle, the keyword
+# 'far' or 'near' controlling source position relative to any
+# path tangent point, and the keyword 'radio' or 'optical'
+# controlling the refractivity model.
+?
+? Usage:
+?   am point2point.amc zsource zobs  zenith_angle RH%  far|near radio|optical
+? Example:
+?   am point2point.amc  10 km  2 km  80 deg  50%  far  radio
+?
+
+f 0 GHz  150 GHz  2.5 MHz
+output f GHz  tau dB  tau_fsl dB
+
+geometry spherical
+refract  %9
+za %5 %6
+
+zsource %1 %2 %8 # source altitude and side of tangent point
+zobs    %3 %4    # observer altitude
+
+layer
+Pbase   1.109 mbar
+Tbase 270.65 K
+column dry_air hydrostatic
+
+layer
+Pbase   8.680 mbar
+Tbase 228.65 K
+column dry_air hydrostatic
+
+layer
+Pbase  54.75 mbar
+Tbase 216.65 K
+column dry_air hydrostatic
+
+layer
+Pbase 226.32 mbar
+Tbase 216.65 K
+column dry_air hydrostatic
+column h2o RHi %7
+
+layer
+Pbase  358.58 mbar
+Tbase  236.48 K
+column dry_air hydrostatic
+column h2o RHi %7
+
+layer
+Pbase  488.20 mbar
+Tbase  250.78 K
+column dry_air hydrostatic
+column h2o RH %7
+
+layer
+Pbase  620.42 mbar
+Tbase  262.48 K
+column dry_air hydrostatic
+column h2o RH %7
+
+layer
+Pbase  751.52 mbar
+Tbase  272.23 K
+column dry_air hydrostatic
+column h2o RH %7
+
+layer
+Pbase  882.51 mbar
+Tbase  280.68 K
+column dry_air hydrostatic
+column h2o RH %7
+
+layer
+Pbase 1013.25 mbar
+Tbase  288.15 K
+column dry_air hydrostatic
+column h2o RH %7

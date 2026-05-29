@@ -1,0 +1,13 @@
+# Example 2.3 - path including dry air, at default mixing ratio
+?
+? Usage: am example2.3.amc [RH%] 
+?
+f 0 GHz  2500 GHz  50 MHz
+T0 77 K
+
+layer
+P 1013.25 mbar
+T 20 C
+h 1 m
+column dry_air vmr
+column h2o RH %1

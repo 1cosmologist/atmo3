@@ -10,3 +10,5 @@ from .obs_utils import *
 from .parallel_rng import *
 from .power import *
 from .ice_emission import *
+from .lines_emission import *
+from .continuum_emission import *

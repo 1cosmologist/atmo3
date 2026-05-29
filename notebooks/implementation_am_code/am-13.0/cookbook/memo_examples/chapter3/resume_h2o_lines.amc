@@ -1,0 +1,7 @@
+f 0 THz  15 THz  0.05 GHz
+output f  k
+
+layer
+P 500 hPa
+T 270 K
+column h2o_lines 1 mm_pwv

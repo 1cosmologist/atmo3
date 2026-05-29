@@ -1,0 +1,12 @@
+# Example 2.2 - laboratory propagation path, user supplies RH
+?
+? Usage: am example2.2.amc [RH%]
+?
+f 0 GHz  2500 GHz  50 MHz
+T0 77 K
+
+layer
+P 1013.25 mbar
+T 20 C
+h 1 m
+column h2o RH %1

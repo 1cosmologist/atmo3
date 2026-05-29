@@ -1,0 +1,12 @@
+# Example 6.2 - Wet excess delay on Mauna Kea, restricted output range
+
+f  0 THz  15 THz  25 MHz
+fout  0 GHz  1000 GHz
+output  f GHz  L um
+selfbroad_vmr_tol 0
+
+layer
+P 625 mbar
+T 4 C
+h 1 m
+column h2o 1 um_pwv

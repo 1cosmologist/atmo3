@@ -1,0 +1,47 @@
+# Example 2.4 - Simple atmospheric model with constant RH and cloud
+#
+#               T(P) from US standard atmosphere
+?
+? Usage:   am example2.4.amc  RH%  cloud_LWP
+? Example: am example2.4.amc  75%  200 g*m^-2
+?
+
+f 0 GHz  350 GHz  25 MHz
+output f GHz  tau neper
+
+T0 2.7 K
+
+layer   # empty layer for top of atmosphere
+Pbase 0 mbar
+Tbase 217 K
+
+layer
+Pbase 200 mbar  # z = 11.8 km
+Tbase 217 K
+column dry_air hydrostatic
+column h2o RHi %1
+
+layer
+Pbase 400 mbar  # z = 7.2 km
+Tbase 241 K
+column dry_air hydrostatic
+column h2o RHi %1
+
+layer
+Pbase 600 mbar  # z = 4.2 km
+Tbase 261 K
+column dry_air hydrostatic
+column h2o RH %1
+
+layer
+Pbase 800 mbar  # z = 1.9 km
+Tbase 275 K
+column lwp_abs_Rayleigh %2 %3  # cloud layer
+column dry_air hydrostatic
+column h2o RH %1
+
+layer
+Pbase 1000 mbar # z = 0.1 km
+Tbase 288 K
+column dry_air hydrostatic
+column h2o RH %1

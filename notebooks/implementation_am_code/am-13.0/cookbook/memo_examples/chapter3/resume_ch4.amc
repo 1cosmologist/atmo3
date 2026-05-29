@@ -1,0 +1,7 @@
+f 0 THz  15 THz  0.05 GHz
+output f  k
+
+layer
+P 500 hPa
+T 260 K
+column ch4 3.4e19 cm^-2

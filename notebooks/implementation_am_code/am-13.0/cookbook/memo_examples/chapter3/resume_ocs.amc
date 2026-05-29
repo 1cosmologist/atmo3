@@ -1,0 +1,9 @@
+f 0 THz  15 THz  0.01 GHz
+output f  k
+
+layer
+P 5 hPa
+T 290 K
+h 1 m
+lineshape Gross strict_self_broadening ocs
+column ocs vmr 1.0

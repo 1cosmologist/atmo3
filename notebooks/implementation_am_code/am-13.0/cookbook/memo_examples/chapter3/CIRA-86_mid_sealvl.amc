@@ -1,0 +1,121 @@
+#
+# Mid-latitude dry air model for comparison with the data collected in
+# Table 2 of Danese and Partridge, Ap. J. 342:604.
+#
+f 0 GHz  10 GHz  5 MHz
+output f  tau dB  Tb K
+#
+# Layer pressures and temperatures here are interpolated from the CIRA-86
+# annual mean reference atmosphere, for 40 deg N latitude.
+#
+# Reference:
+#
+#   Committee on Space Research (COSPAR). The COSPAR International Atmosphere
+#   (CIRA-86), [Internet]. NCAS British Atmospheric Data Centre, 2006-2011.
+#   Available from
+#     http://badc.nerc.ac.uk/view/badc.nerc.ac.uk__ATOM__dataent_CIRA .
+#
+layer
+Pbase  0 mbar  # z = 0.00 km
+Tbase  215.879 K
+
+layer
+Pbase 50.663 mbar  # z = 20.55 km
+Tbase 215.879 K
+column o2 vmr
+
+layer
+Pbase 101.325 mbar  # z = 16.25 km
+Tbase 213.115 K
+column o2 vmr
+
+layer
+Pbase 151.988 mbar  # z = 13.73 km
+Tbase 214.918 K
+column o2 vmr
+
+layer
+Pbase 202.650 mbar  # z = 11.91 km
+Tbase 218.902 K
+column o2 vmr
+
+layer
+Pbase 253.312 mbar  # z = 10.46 km
+Tbase 224.542 K
+column o2 vmr
+
+layer
+Pbase 303.975 mbar  # z = 9.23 km
+Tbase 231.118 K
+column o2 vmr
+
+layer
+Pbase 354.637 mbar  # z = 8.18 km
+Tbase 238.186 K
+column o2 vmr
+
+layer
+Pbase 405.300 mbar  # z = 7.25 km
+Tbase 244.709 K
+column o2 vmr
+
+layer
+Pbase 455.963 mbar  # z = 6.38 km
+Tbase 250.931 K
+column o2 vmr
+
+layer
+Pbase 506.625 mbar  # z = 5.60 km
+Tbase 256.265 K
+column o2 vmr
+
+layer
+Pbase 557.288 mbar  # z = 4.89 km
+Tbase 260.887 K
+column o2 vmr
+
+layer
+Pbase 607.950 mbar  # z = 4.18 km
+Tbase 265.510 K
+column o2 vmr
+
+layer
+Pbase 658.612 mbar  # z = 3.58 km
+Tbase 268.810 K
+column o2 vmr
+
+layer
+Pbase 709.275 mbar  # z = 3.01 km
+Tbase 271.916 K
+column o2 vmr
+
+layer
+Pbase 759.938 mbar  # z = 2.43 km
+Tbase 275.022 K
+column o2 vmr
+
+layer
+Pbase 810.600 mbar  # z = 1.90 km
+Tbase 277.951 K
+column o2 vmr
+
+layer
+Pbase 861.263 mbar  # z = 1.44 km
+Tbase 280.641 K
+column o2 vmr
+
+layer
+Pbase 911.925 mbar  # z = 0.97 km
+Tbase 283.332 K
+column o2 vmr
+
+layer
+Pbase 962.588 mbar  # z = 0.50 km
+Tbase 286.023 K
+column o2 vmr
+
+layer
+Pbase 1013.250 mbar  # z = 0.04 km
+Tbase 288.713 K
+column o2 vmr
+

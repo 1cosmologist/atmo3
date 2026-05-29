@@ -1,0 +1,339 @@
+# File Arctic_annual.amc - generic Arctic atmosphere, annual average.
+#
+# The profiles in this file were derived from NASA MERRA2 reanalysis
+# data, temporally and spatially averaged using the Giovanni online
+# data system developed and maintained by the NASA Goddard Earth
+# Sciences Data and Information Services Center (GES DISC).
+#
+# Files:
+#   g4.curtainTime.M2IMNPASM_5_12_4_H.20061201-20161130.180W_66N_180E_90N.nc
+#   g4.curtainTime.M2IMNPASM_5_12_4_O3.20061201-20161130.180W_66N_180E_90N.nc
+#   g4.curtainTime.M2IMNPASM_5_12_4_QV.20061201-20161130.180W_66N_180E_90N.nc
+#   g4.curtainTime.M2IMNPASM_5_12_4_T.20061201-20161130.180W_66N_180E_90N.nc
+#
+# MERRA references:
+#   M. M. Rienecker et al. (2011), MERRA: NASA's Modern-Era Retrospective
+#   Analysis for Research and Applications. J. Climate 24:3624.
+#
+#   A. Molod et al (2015), Development of the GEOS-5 atmospheric general
+#   circulation model: evolution from MERRA to MERRA2.  Geoscience Model
+#   Development 8:1339. 
+#
+# MERRA is produced by the NASA/Goddard Global Modeling and Assimilation
+# Office (GMAO).  MERRA data are archived and distributed by the
+# GES DISC.
+?
+? Usage:
+?  am Arctic_annual.amc  f_min  f_max  df  zenith_angle  trop_h2o_scale_factor
+?
+? Example:
+?  am Arctic_annual.amc  0 GHz  300 GHz  10 MHz  0 deg  1.0
+?
+f %1 %2  %3 %4  %5 %6
+output f GHz  tx  Tb K
+za %7 %8
+tol 1e-4
+
+Nscale troposphere h2o %9
+
+T0 2.7 K
+
+layer mesosphere
+Pbase 0.1 mbar   # z = 63654 m
+Tbase 233.6 K
+lineshape Voigt-Kielkopf
+column dry_air vmr
+column h2o vmr 4.81e-06
+column o3 vmr 1.38e-06
+
+layer mesosphere
+Pbase 0.3 mbar   # z = 55789 m
+Tbase 250.8 K
+lineshape Voigt-Kielkopf
+column dry_air vmr
+column h2o vmr 5.33e-06
+column o3 vmr 1.34e-06
+
+layer mesosphere
+Pbase 0.4 mbar   # z = 53663 m
+Tbase 254.0 K
+lineshape Voigt-Kielkopf
+column dry_air vmr
+column h2o vmr 5.98e-06
+column o3 vmr 1.41e-06
+
+layer mesosphere
+Pbase 0.5 mbar   # z = 51996 m
+Tbase 256.6 K
+lineshape Voigt-Kielkopf
+column dry_air vmr
+column h2o vmr 6.20e-06
+column o3 vmr 1.66e-06
+
+layer mesosphere
+Pbase 0.7 mbar   # z = 49449 m
+Tbase 260.1 K
+lineshape Voigt-Kielkopf
+column dry_air vmr
+column h2o vmr 6.38e-06
+column o3 vmr 2.07e-06
+
+layer stratosphere
+Pbase 1 mbar   # z = 46738 m
+Tbase 258.7 K
+lineshape Voigt-Kielkopf
+column dry_air vmr
+column h2o vmr 6.54e-06
+column o3 vmr 2.73e-06
+
+layer stratosphere
+Pbase 2 mbar   # z = 41591 m
+Tbase 247.4 K
+column dry_air vmr
+column h2o vmr 6.60e-06
+column o3 vmr 3.87e-06
+
+layer stratosphere
+Pbase 3 mbar   # z = 38706 m
+Tbase 239.6 K
+column dry_air vmr
+column h2o vmr 6.56e-06
+column o3 vmr 5.01e-06
+
+layer stratosphere
+Pbase 4 mbar   # z = 36704 m
+Tbase 235.6 K
+column dry_air vmr
+column h2o vmr 6.44e-06
+column o3 vmr 5.53e-06
+
+layer stratosphere
+Pbase 5 mbar   # z = 35175 m
+Tbase 232.5 K
+column dry_air vmr
+column h2o vmr 6.29e-06
+column o3 vmr 5.67e-06
+
+layer stratosphere
+Pbase 7 mbar   # z = 32912 m
+Tbase 227.8 K
+column dry_air vmr
+column h2o vmr 6.14e-06
+column o3 vmr 5.57e-06
+
+layer stratosphere
+Pbase 10 mbar   # z = 30562 m
+Tbase 223.0 K
+column dry_air vmr
+column h2o vmr 5.99e-06
+column o3 vmr 5.26e-06
+
+layer stratosphere
+Pbase 20 mbar   # z = 26092 m
+Tbase 218.2 K
+column dry_air vmr
+column h2o vmr 5.65e-06
+column o3 vmr 4.66e-06
+
+layer stratosphere
+Pbase 30 mbar   # z = 23511 m
+Tbase 217.2 K
+column dry_air vmr
+column h2o vmr 5.21e-06
+column o3 vmr 3.99e-06
+
+layer stratosphere
+Pbase 40 mbar   # z = 21684 m
+Tbase 217.2 K
+column dry_air vmr
+column h2o vmr 4.94e-06
+column o3 vmr 3.51e-06
+
+layer stratosphere
+Pbase 50 mbar   # z = 20264 m
+Tbase 217.5 K
+column dry_air vmr
+column h2o vmr 4.75e-06
+column o3 vmr 3.11e-06
+
+layer stratosphere
+Pbase 70 mbar   # z = 18117 m
+Tbase 218.4 K
+column dry_air vmr
+column h2o vmr 4.56e-06
+column o3 vmr 2.56e-06
+
+layer troposphere
+Pbase 100 mbar   # z = 15832 m
+Tbase 219.5 K
+column dry_air vmr
+column h2o vmr 4.54e-06
+column o3 vmr 1.76e-06
+
+layer troposphere
+Pbase 150 mbar   # z = 13218 m
+Tbase 221.0 K
+column dry_air vmr
+column h2o vmr 5.87e-06
+column o3 vmr 1.01e-06
+
+layer troposphere
+Pbase 200 mbar   # z = 11355 m
+Tbase 220.8 K
+column dry_air vmr
+column h2o vmr 1.31e-05
+column o3 vmr 5.57e-07
+
+layer troposphere
+Pbase 250 mbar   # z = 9919 m
+Tbase 218.9 K
+column dry_air vmr
+column h2o vmr 3.10e-05
+column o3 vmr 3.22e-07
+
+layer troposphere
+Pbase 300 mbar   # z = 8749 m
+Tbase 221.0 K
+column dry_air vmr
+column h2o vmr 6.38e-05
+column o3 vmr 1.68e-07
+
+layer troposphere
+Pbase 350 mbar   # z = 7742 m
+Tbase 226.1 K
+column dry_air vmr
+column h2o vmr 1.20e-04
+column o3 vmr 9.41e-08
+
+layer troposphere
+Pbase 400 mbar   # z = 6848 m
+Tbase 231.7 K
+column dry_air vmr
+column h2o vmr 2.08e-04
+column o3 vmr 6.72e-08
+
+layer troposphere
+Pbase 450 mbar   # z = 6040 m
+Tbase 237.2 K
+column dry_air vmr
+column h2o vmr 3.36e-04
+column o3 vmr 5.82e-08
+
+layer troposphere
+Pbase 500 mbar   # z = 5300 m
+Tbase 242.2 K
+column dry_air vmr
+column h2o vmr 5.07e-04
+column o3 vmr 5.43e-08
+
+layer troposphere
+Pbase 550 mbar   # z = 4618 m
+Tbase 246.7 K
+column dry_air vmr
+column h2o vmr 7.20e-04
+column o3 vmr 5.18e-08
+
+layer troposphere
+Pbase 600 mbar   # z = 3985 m
+Tbase 250.6 K
+column dry_air vmr
+column h2o vmr 9.82e-04
+column o3 vmr 5.01e-08
+
+layer troposphere
+Pbase 650 mbar   # z = 3393 m
+Tbase 254.1 K
+column dry_air vmr
+column h2o vmr 1.29e-03
+column o3 vmr 4.88e-08
+
+layer troposphere
+Pbase 700 mbar   # z = 2839 m
+Tbase 256.9 K
+column dry_air vmr
+column h2o vmr 1.62e-03
+column o3 vmr 4.77e-08
+
+layer troposphere
+Pbase 725 mbar   # z = 2574 m
+Tbase 258.3 K
+column dry_air vmr
+column h2o vmr 1.90e-03
+column o3 vmr 4.70e-08
+
+layer troposphere
+Pbase 750 mbar   # z = 2317 m
+Tbase 259.5 K
+column dry_air vmr
+column h2o vmr 2.10e-03
+column o3 vmr 4.65e-08
+
+layer troposphere
+Pbase 775 mbar   # z = 2067 m
+Tbase 260.6 K
+column dry_air vmr
+column h2o vmr 2.31e-03
+column o3 vmr 4.61e-08
+
+layer troposphere
+Pbase 800 mbar   # z = 1824 m
+Tbase 261.5 K
+column dry_air vmr
+column h2o vmr 2.52e-03
+column o3 vmr 4.55e-08
+
+layer troposphere
+Pbase 825 mbar   # z = 1588 m
+Tbase 262.3 K
+column dry_air vmr
+column h2o vmr 2.74e-03
+column o3 vmr 4.49e-08
+
+layer troposphere
+Pbase 850 mbar   # z = 1358 m
+Tbase 263.0 K
+column dry_air vmr
+column h2o vmr 2.95e-03
+column o3 vmr 4.42e-08
+
+layer troposphere
+Pbase 875 mbar   # z = 1134 m
+Tbase 263.6 K
+column dry_air vmr
+column h2o vmr 3.15e-03
+column o3 vmr 4.35e-08
+
+layer troposphere
+Pbase 900 mbar   # z = 917 m
+Tbase 264.0 K
+column dry_air vmr
+column h2o vmr 3.34e-03
+column o3 vmr 4.26e-08
+
+layer troposphere
+Pbase 925 mbar   # z = 705 m
+Tbase 264.2 K
+column dry_air vmr
+column h2o vmr 3.50e-03
+column o3 vmr 4.17e-08
+
+layer troposphere
+Pbase 950 mbar   # z = 499 m
+Tbase 264.3 K
+column dry_air vmr
+column h2o vmr 3.62e-03
+column o3 vmr 4.08e-08
+
+layer troposphere
+Pbase 975 mbar   # z = 300 m
+Tbase 264.2 K
+column dry_air vmr
+column h2o vmr 3.69e-03
+column o3 vmr 3.98e-08
+
+layer troposphere
+Pbase 1000 mbar   # z = 125 m
+Tbase 263.2 K
+column dry_air vmr
+column h2o vmr 3.57e-03
+column o3 vmr 3.89e-08

@@ -20,6 +20,23 @@ k_B = con.k
 h = con.h 
 giga = con.giga
 
+# Second radiation constant (hc/k_B) in [cm * K]
+# Multiplied by 100 to convert from [m * K] to [cm * K]
+c2 = (h * c / k_B) * 100.0  
+
+# Conversion factor to divide a GHz array by to get cm^-1
+# Evaluates to exactly 29.9792458
+ghz_to_cm_inv = c / 1e7
+
+# MT_CKD Reference Number Density at 1 atm and 296K [molecules / cm^3]
+# Evaluates to ~ 2.479e19
+n_ref_mt_ckd = (con.atm / (k_B * 296.0)) * 1e-6
+
+# Standard Volume Mixing Ratios in Dry Air
+N2_VOLUME_MIXING_RATIO = 0.78084  # 78.084%
+O2_VOLUME_MIXING_RATIO = 0.20946  # 20.946%
+# (For completeness, Argon is ~0.00934 and CO2 is ~0.0004)
+
 # ==============================================================================
 # ITU-R P.676 Table 1: Oxygen Spectroscopic Data
 # ==============================================================================

@@ -1,0 +1,13 @@
+# for comparison with Meshkov & De Lucia 2007, JQSRT 108:256, Fig. 12
+#
+f 175 GHz  260 GHz  0.1 GHz
+output f  tau
+
+selfbroad_vmr_tol 0.0
+
+layer
+P %1 Torr
+T 297 K
+h 1 cm
+column o2 vmr 1.0
+column o2o2 vmr 1.0

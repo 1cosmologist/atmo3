@@ -1,0 +1,37 @@
+The files in this directory are am model configuration files based on
+zonally and seasonally averaged vertical profiles.  These profiles are
+averages derived from the NASA MERRA-2 reanalysis for the decade
+2006 - 2016.  For more background information and references, see the
+comments in the .amc files.
+
+In each directory here, the file names are of the form
+
+    zone_season.amc
+    zone_season.png
+    zone_season.txt
+
+where 'zone' indicates the latitude range, and is one of
+
+    Arctic                66 N to 90 N
+    northern_midlatitude  23 N to 66 N
+    tropical              23 S to 23 N
+    southern_midlatitude  66 S to 23 N
+    Antarctic             90 S to 66 S
+
+and 'season' is one of
+
+    annual  mean over entire year
+    DJF     December, January, February
+    MAM     March, April, May
+    JJA     June, July, August
+    SON     September, October, November
+
+The .amc files are basic am configuration files based on the profiles
+tabulated in the .txt files.  The .png files are plots for convenient
+viewing of the profiles.
+
+Note that the models in the .amc files start from sea level.  Users
+interested in modelling zonally-averaged atmospheric properties from
+higher surface altitudes, aircraft, or balloons can simply comment out
+or delete layers at lower altitude, and interpolate the lowest layer
+if needed.

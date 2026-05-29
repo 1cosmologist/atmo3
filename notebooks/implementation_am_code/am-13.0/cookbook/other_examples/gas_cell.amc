@@ -1,0 +1,19 @@
+# A laboratory gas cell, 54 cm long, at 25 C, containing OCS at 5 hPa.
+# The background is a liquid nitrogen cold load at 77 K.  The path in
+# air is neglected.
+#
+# The output spectra are the transmittance through the cell, and the
+# effective Planck brightness temperature looking through the cell
+# towards the cold load.
+
+f 0 GHz 1000 GHz 10 MHz
+output f tx Tb
+
+T0 77 K
+
+layer
+P 5 hPa
+T 25 C
+h 54 cm
+lineshape Gross strict_self_broadening ocs
+col ocs vmr 1.0

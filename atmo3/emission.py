@@ -1,6 +1,8 @@
 import jax
 import jax.numpy as jnp
 from functools import partial
+from . import lines_emission
+from . import continuum_emission
 
 from . import constants
 
@@ -85,6 +87,87 @@ def compute_attenuation_point(T, P, rho_w, freqs_GHz):
     gamma_wet = 0.1820 * freqs_GHz * N_pp_h2o # Eq (1) and (2b) from ITU-R P.676-13 Annex 1
     
     return gamma_dry, gamma_wet
+
+
+# Here we do the am implementation of the H2O emission
+
+def compute_attenuation_water_vapor_am(T, P_Pa, rho_w, freqs_GHz):
+    """
+    Computes the specific attenuation for a single spatial point over multiple frequencies.
+    Input scalars: T (Kelvin), P (Pa, Total air pressure), rho_water (kg/m^3, water vapor density).
+    Input vector: freqs_GHz (shape: Nf,)
+    Returns: gamma_dry, gamma_wet (both shape: Nf,) in dB/km
+    """
+
+    # convert water vapor density to water vapor pressure in hPa
+    e_Pa = rho_w * constants.R_water_vapor * T  
+
+    e_hPa = e_Pa / 100.0
+    P_hPa = P_Pa / 100.0
+
+    # 3. Calculate particle densities (molecules / cm^3)
+    # n = P / (k_B * T) gives m^-3. Multiply by 1e-6 to get cm^-3.
+    n_air_density = ((P_Pa - e_Pa) / (constants.k_B * T)) * 1e-6
+    n_water_density = (e_Pa / (constants.k_B * T)) * 1e-6
+
+    # Let's calculate the absorption coefficient k in cm^2/molecule for the H2O lines
+
+    k_lines = lines_emission.calculate_h2o_absorption_jax(freqs_GHz, T, P_hPa, e_hPa) # in cm^2/molecule
+
+    # Now we calculate the continuum absorption coefficient k_continuum in cm^5/molecule^2
+    k_continuum_self, k_continuum_air = continuum_emission.compute_h2o_continuum_jax(freqs_GHz, T) # in cm^5/molecule^2
+
+    # Total absorption coefficient for water vapor is the sum of line and continuum contributions
+    gamma_wet_tot = (n_water_density * k_lines + n_water_density**2 * k_continuum_self + n_air_density * n_water_density * k_continuum_air) *1e5 * (10.0/jnp.log(10.)) # Convert from cm^2/molecule to dB/km
+
+    return gamma_wet_tot
+
+def compute_attenuation_dry_air_am(T, P_Pa, rho_w, freqs_GHz):
+    """
+    Computes the specific attenuation for a single spatial point over multiple frequencies.
+    Input scalars: T (Kelvin), P (Pa, Total air pressure), rho_water (kg/m^3, water vapor density).
+    Input vector: freqs_GHz (shape: Nf,)
+    Returns: gamma_dry, gamma_wet (both shape: Nf,) in dB/km
+    """
+
+    # convert water vapor density to water vapor pressure in hPa
+    e_Pa = rho_w * constants.R_water_vapor * T 
+    P_dry_Pa = (P_Pa - e_Pa)
+
+    e_hPa = e_Pa / 100.0
+    P_hPa = P_Pa / 100.0
+    #P_dry_hPa = P_hPa - e_hPa
+    # 3. Calculate particle densities (molecules / cm^3)
+    # n = P / (k_B * T) gives m^-3. Multiply by 1e-6 to get cm^-3.
+    n_air_density = (P_dry_Pa / (constants.k_B * T)) * 1e-6
+    n_O2_density = n_air_density * constants.O2_VOLUME_MIXING_RATIO
+    n_N2_density = n_air_density * constants.N2_VOLUME_MIXING_RATIO
+
+    k_lines_coupled = lines_emission.calculate_o2_coupled_absorption_jax(freqs_GHz, T, P_hPa)
+    k_lines_uncoupled = lines_emission.calculate_o2_uncoupled_absorption_jax(freqs_GHz, T, P_hPa)
+
+    gamma_dry_lines = (n_O2_density * k_lines_coupled + n_O2_density * k_lines_uncoupled) * 1e5 * (10.0/jnp.log(10.))  # in dB/km
+    # Let's calculate the continuum absorption coefficient k_continuum in cm^5/molecule^2
+    k_continuum_N2N2, k_continuum_O2O2, k_continuum_N2O2, k_continuum_O2N2 = continuum_emission.compute_cia_continuum_jax(freqs_GHz, T) # in cm^5/molecule^2
+    gamma_dry_continuum = (n_N2_density**2 * k_continuum_N2N2 + n_O2_density**2 * k_continuum_O2O2 + n_N2_density * n_O2_density * (k_continuum_N2O2 +k_continuum_O2N2)) * 1e5 * (10.0/jnp.log(10.)) # Convert from cm^5/molecule^2 to dB/km
+
+    return gamma_dry_lines + gamma_dry_continuum
+
+
+
+def compute_attenuation_point_am(T, P, rho_w, freqs_GHz):
+    """
+    Computes the specific attenuation for a single spatial point over multiple frequencies.
+    Input scalars: T (Kelvin), P (Pa, Total air pressure), rho_water (kg/m^3, water vapor density).
+    Input vector: freqs_GHz (shape: Nf,)
+    Returns: gamma_dry, gamma_wet (both shape: Nf,) in dB/km
+    """
+
+    gamma_wet = compute_attenuation_water_vapor_am(T, P, rho_w, freqs_GHz)
+    gamma_dry = compute_attenuation_dry_air_am(T, P, rho_w, freqs_GHz)
+    
+    return gamma_dry, gamma_wet
+
 
 
 def attenuation_to_transmission(gamma_nu, ds):
