@@ -154,19 +154,45 @@ def compute_attenuation_dry_air_am(T, P_Pa, rho_w, freqs_GHz):
     return gamma_dry_lines + gamma_dry_continuum
 
 
+def compute_attenuation_ozone_am(T, P_Pa, P_o3_Pa, rho_w, freqs_GHz):
+    """
+    Computes the specific attenuation of Ozone for a single spatial point over multiple frequencies.
+    Input scalars: T (Kelvin), P_Pa (Pa, Total air pressure), P_o3_Pa (Pa, Ozone partial pressure), rho_w (kg/m^3, water vapor density).
+    Input vector: freqs_GHz (shape: Nf,)
+    Returns: gamma_o3 (shape: Nf,) in dB/km
+    """
+    
+    # 1. Convert pressures to hPa for the lines_emission API
+    P_hPa = P_Pa / 100.0
+    P_o3_hPa = P_o3_Pa / 100.0
 
-def compute_attenuation_point_am(T, P, rho_w, freqs_GHz):
+    # 2. Calculate Ozone particle density (molecules / cm^3)
+    # n = P / (k_B * T) gives m^-3. Multiply by 1e-6 to get cm^-3.
+    n_o3_density = (P_o3_Pa / (constants.k_B * T)) * 1e-6
+
+    # 3. Calculate the absorption coefficient k in cm^2/molecule for the O3 lines
+    k_lines_o3 = lines_emission.calculate_o3_absorption_jax(freqs_GHz, T, P_hPa, P_o3_hPa)
+
+    # 4. Compute total attenuation
+    # Multiply cross-section by density to get cm^-1, then convert to dB/km
+    gamma_o3 = (n_o3_density * k_lines_o3) * 1e5 * (10.0 / jnp.log(10.0)) 
+
+    return gamma_o3
+
+
+def compute_attenuation_point_am(T, P, rho_w, freqs_GHz, P_o3 = 0.0):
     """
     Computes the specific attenuation for a single spatial point over multiple frequencies.
-    Input scalars: T (Kelvin), P (Pa, Total air pressure), rho_water (kg/m^3, water vapor density).
+    Input scalars: T (Kelvin), P (Pa, Total air pressure), rho_water (kg/m^3, water vapor density), P_o3 (Pa, Ozone partial pressure) set to 0.0 by default.
     Input vector: freqs_GHz (shape: Nf,)
-    Returns: gamma_dry, gamma_wet (both shape: Nf,) in dB/km
+    Returns: gamma_dry, gamma_wet, gamma_o3 (all shape: Nf,) in dB/km
     """
 
     gamma_wet = compute_attenuation_water_vapor_am(T, P, rho_w, freqs_GHz)
     gamma_dry = compute_attenuation_dry_air_am(T, P, rho_w, freqs_GHz)
+    gamma_o3 = compute_attenuation_ozone_am(T, P, P_o3, rho_w, freqs_GHz)
     
-    return gamma_dry, gamma_wet
+    return gamma_dry, gamma_wet, gamma_o3
 
 
 

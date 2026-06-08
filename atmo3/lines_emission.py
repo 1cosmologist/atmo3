@@ -20,6 +20,7 @@ DATA_DIR = CURRENT_DIR / 'data'
 data_H2O = np.load(DATA_DIR / 'h2o_lines_1750GHz.npz')
 data_o2_coupled = np.load(DATA_DIR / 'o2_coupled_lines_1750GHz.npz')
 data_o2_uncoupled = np.load(DATA_DIR / 'o2_uncoupled_lines_1750GHz.npz')
+data_O3 = np.load(DATA_DIR / 'o3_uncoupled_lines_1000GHz.npz') 
 data_partition_functions = np.load(DATA_DIR / 'partition_functions.npz')
 
 # Extract the static temperature grid for partition functions
@@ -195,6 +196,37 @@ def _calculate_o2_uncoupled_core(freq_grid_GHz, T, T_ref, P_hPa, Q_ratio):
     return jnp.sum(S_T * F_G, axis=1)
 
 
+@jit
+def _calculate_o3_absorption_jax_core(freq_grid_GHz, T, T_ref, P_hPa, P_o3_hPa, Q_ratio):
+    nu = (freq_grid_GHz / con.ghz_to_cm_inv)[:, None]
+    
+    # --- Extracted O3 Parameters ---
+    f0 = jnp.asarray(data_O3['f0'])[None, :]          # Center Frequency [cm^-1]
+    S_ref = jnp.asarray(data_O3['S'])[None, :]        # Reference Line Strength [cm^-1 / (molecule * cm^-2)]
+    E_lower = jnp.asarray(data_O3['E'])[None, :]      # Lower-state energy [cm^-1]
+    ga = jnp.asarray(data_O3['ga'])[None, :]          # Air-broadened half-width [cm^-1 / atm]
+    gs = jnp.asarray(data_O3['gs'])[None, :]          # Self-broadened half-width [cm^-1 / atm]
+    n_temp = jnp.asarray(data_O3['n'])[None, :]       # Temperature dependence coefficient [dimensionless]
+    delta = jnp.asarray(data_O3['d'])[None, :]        # Pressure shift coefficient [cm^-1 / atm]
+    
+    # Pressure conversions
+    P_atm = P_hPa / P_0_hPa
+    P_o3_atm = P_o3_hPa / P_0_hPa
+    P_dry_atm = P_atm - P_o3_atm
+    
+    # 1. Dynamic Line Strength
+    S_T = compute_line_strength_jax(T, T_ref, Q_ratio, f0, S_ref, E_lower)
+    
+    # 2. Line Width and Shift (uses the generalized trace gas function)
+    gamma = compute_line_width_cm_jax(T, 296.0, n_temp, ga, P_dry_atm, gs, P_o3_atm)
+    nu_star = compute_line_shift_cm_jax(f0, delta, P_atm)
+    
+    # 3. Gross Line Shape (reusing the function from uncoupled O2)
+    F_G = gross_shape_jax(nu, nu_star, gamma)
+    
+    # 4. Final integration across all lines
+    return jnp.sum(S_T * F_G, axis=1)
+
 # =====================================================================
 # E. The Python APIs (Safe Entry Points)
 # =====================================================================
@@ -213,3 +245,8 @@ def calculate_o2_uncoupled_absorption_jax(freq_grid_GHz, T, P_hPa):
     Q_grid = jnp.asarray(data_partition_functions['O2'])
     Q_ratio = interp_partition_sum_jax(296.0, Q_grid) / interp_partition_sum_jax(T, Q_grid)
     return _calculate_o2_uncoupled_core(jnp.asarray(freq_grid_GHz), T, 296.0, P_hPa, Q_ratio)
+
+def calculate_o3_absorption_jax(freq_grid_GHz, T, P_hPa, P_o3_hPa):
+    Q_grid = jnp.asarray(data_partition_functions['O3'])
+    Q_ratio = interp_partition_sum_jax(296.0, Q_grid) / interp_partition_sum_jax(T, Q_grid)
+    return _calculate_o3_absorption_jax_core(jnp.asarray(freq_grid_GHz), T, 296.0, P_hPa, P_o3_hPa, Q_ratio)
