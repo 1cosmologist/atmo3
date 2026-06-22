@@ -1,5 +1,6 @@
 import jax
 import jax.numpy as jnp
+from . import emission_utils as emu
 from functools import partial
 
 from . import constants
@@ -14,14 +15,14 @@ from . import constants
 def compute_attenuation_point(T, P, rho_w, freqs_GHz):
     """
     Computes the specific attenuation for a single spatial point over multiple frequencies.
-    Input scalars: T (Kelvin), P (Pa, dry air pressure), e (hPa, water vapor pressure).
+    Input scalars: T (Kelvin), P (Pa, total air pressure), rho_w (water vapor density).
     Input vector: freqs_GHz (shape: Nf,)
     Returns: gamma_dry, gamma_wet (both shape: Nf,)
     """
     
     # convert water vapor density to water vapor pressure in hPa
     e = rho_w * constants.R_water_vapor * T / 100.   
-    P = P / 100.
+    P = P / 100. - e                    # Dry air pressure
     
     # Expand freqs for matrix broadcasting against spectral lines
     # f shape: (Nf, 1)
@@ -98,41 +99,6 @@ def attenuation_to_transmission(gamma_nu, ds):
     return jnp.exp( -jnp.log(10.)/10. * jnp.sum(gamma_nu * ds, axis=1))
 
 
-
-def B_nu_T(nu_in_GHz, T_bb):
-    """
-    B_nu_T is the Planck distribution function, defined as: 
-    .. math::
-        B(\\nu, T) = \\frac{2 h \\nu^3}{c^2} \\frac{1}{e^{x} - 1},
-    with 
-    .. math::
-        x = \\frac{h \\nu}{k_B T}.
-    
-    It returns the Planck function values for nu (can be vectorized) 
-    for a given blackbody temperature.
-
-    Parameters
-    ----------
-    nu_in_GHz : float or numpy ndarray
-        Frequency in GHz at which we want the value of the Planck function.
-    T_planck : float, optional
-        Temperature of the Planck distribution in Kelvin.
-        Default value set to the CMB monopole temperature of 2.7255 K.
-
-    Returns
-    -------
-    float or numpy ndarray
-        A float value (or ndarray) for the value(s) of the Planck distribution.
-
-    """
-
-    nu_in_Hz = nu_in_GHz * constants.giga
-    x = constants.h * nu_in_Hz / constants.k_B / T_bb
-    prefactor = 2. * constants.h * nu_in_Hz**3. / constants.c**2.
-
-    return prefactor / (jnp.exp(x) - 1.)
-
-
 @jax.jit
 def compute_attenuation_los(T_los, P_los, rho_los, freqs_in_GHz):
     # T_los, P_los, rho_los have shape (n_scans, n_los)
@@ -164,10 +130,6 @@ def get_emission(T_los, P_los, rho_los, ds, freqs_in_GHz):
     Alower_nu = jnp.concatenate([jnp.zeros_like(A_nu[:, :, :1]), jnp.cumsum(A_nu[:, :, :-1], axis=2)], axis=2)
     
     # B_nu_T inputs broadcast to (n_scans, Nf, n_los)
-    B_nu = B_nu_T(freqs_in_GHz[None, :, None], T_los[:, None, :])
+    B_nu = emu.B_nu_T(freqs_in_GHz[None, :, None], T_los[:, None, :])
     
     return jnp.sum(B_nu * (1. - 10.**(-A_nu / 10.)) * 10.**(-Alower_nu / 10.), axis=2)
-    
-    
-def intensitySI_to_Tb(I_nu, freq_in_GHz):
-    return constants.c**2 / 2. / constants.k_B / (freq_in_GHz * constants.giga)**2. * I_nu

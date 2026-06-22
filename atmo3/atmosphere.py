@@ -258,6 +258,73 @@ class Atmosphere:
             seed=seed,
             mean= {'h': self.super_grid.z, 'f': self.atm_calibrator.spec_humidity_profile*self.atm_calibrator.q2rho_h2o},
         )
+        
+    def add_cloud(self,
+                power_spec: dict, 
+                seed: int = 424242, 
+                ) -> None :
+        """
+        Add turbulent cloud components (ice and liquid water) to the atmosphere.
+        This initializes a standardized base fluctuation field.
+        """
+        z_array = self.super_grid.z
+        
+        # 1. Add the underlying standardized fluctuation field
+        self._add_component(
+            field_name='cloud fluctuations',
+            field_unit='unitless',
+            pspec=power_spec,
+            zscale={'h': z_array, 'f': jnp.ones_like(z_array)}, # Note: parameter is zscale here, mapped to zscaling inside _add_component
+            seed=seed,
+            mean={'h': z_array, 'f': jnp.zeros_like(z_array)},
+        )
+        
+        # 2. Register the derived component names so generate_realization recognizes them
+        for name in ['cloud', 'ice water', 'liquid water']:
+            if name not in self.component_names:
+                self.component_names.append(name)
+
+
+    def _derive_cloud_cubes(self):
+        """
+        Derives the 3D cloud mask, ice cube, and liquid cube from the 
+        base cloud fluctuations and ERA5 1D profiles.
+        """
+        if 'cloud fluctuations' not in self.components:
+            return
+
+        # Extract base fluctuations and 1D profiles from calibrator
+        fluctuations_cloud = self.components['cloud fluctuations'].field
+        cc_interp = self.atm_calibrator.cc_profile
+        
+        nz = fluctuations_cloud.shape[2]
+
+        # Flatten spatial dims: (nz, nx * ny)
+        fluct_flat = jnp.transpose(fluctuations_cloud, (2, 0, 1)).reshape(nz, -1)
+        q_targets = jnp.clip(1.0 - cc_interp, 0.0, 1.0)
+
+        # Vectorized quantile thresholding
+        layer_thresholds = jax.vmap(jnp.quantile)(fluct_flat, q_targets)
+
+        thresholds_3d = layer_thresholds.reshape(1, 1, nz)
+        cc_3d = cc_interp.reshape(1, 1, nz)
+
+        # Create binary mask
+        cloud_mask = jnp.where(cc_3d > 0.0, fluctuations_cloud >= thresholds_3d, 0).astype(jnp.int8)
+        self.derived_cubes['cloud'] = cloud_mask
+
+        # Process Ice Cube
+        if hasattr(self.atm_calibrator, 'ciwc_profile') and self.atm_calibrator.ciwc_profile is not None:
+            ciwc_interp = self.atm_calibrator.ciwc_profile
+            ice_ratio_1d = jnp.where(cc_interp > 0.0, ciwc_interp / cc_interp, 0.0)
+            self.derived_cubes['ice water'] = cloud_mask * ice_ratio_1d.reshape(1, 1, -1)
+
+        # Process Liquid Cube
+        if hasattr(self.atm_calibrator, 'clwc_profile') and self.atm_calibrator.clwc_profile is not None:
+            clwc_interp = self.atm_calibrator.clwc_profile
+            liquid_ratio_1d = jnp.where(cc_interp > 0.0, clwc_interp / cc_interp, 0.0)
+            self.derived_cubes['liquid water'] = cloud_mask * liquid_ratio_1d.reshape(1, 1, -1)
+
 
     def generate_realization(
         self,

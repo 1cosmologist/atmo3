@@ -46,12 +46,14 @@ py_sources = [
     'atmo3/calibration.py',
     'atmo3/constants.py',
     'atmo3/cube.py',
+    'atmo3/emission_utils.py',
     'atmo3/emission.py',
     'atmo3/grid_utils.py',
     'atmo3/multihost_fft.py',
     'atmo3/obs_utils.py',
     'atmo3/observation.py',
     'atmo3/parallel_rng.py',
+    'atmo3/polarized_emission.py',
     'atmo3/power.py',
     'atmo3/super_grid.py'
 ]

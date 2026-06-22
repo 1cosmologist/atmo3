@@ -27,7 +27,7 @@ ta_injection_scale_in_m = 200.0  # Temperature injection scale (m)
 
 # Grid dimensions [Nx, Ny, Nz] and physical box size [Lx, Ly, Lz] in metres.
 # The horizontal resolution is Lx/Nx ≈ 39 m; the vertical is Lz/Nz ≈ 39 m.
-nside_grid = [2048, 2048, 1024]
+nside_grid = [1024,1024,512]
 box_length = [20000., 20000., 10000.]
 
 boresight  = jnp.array([box_length[0]//2., box_length[1]//2.])
@@ -217,8 +217,9 @@ pwv_scan_w = jnp.trapezoid(water_vapor_los_w, x=obs.los_obj[:,:,3], axis=1)
 # Visualisation
 # =============================================================================
 plt.figure(dpi=200)
-plt.plot(water_vapor_los[0], obs.los_obj[0,:,3], label='los')
-plt.plot(water_vapor_los[0], obs_w.los_obj[0,:,3], label='los')
+plt.plot(water_vapor_los[60], obs.los_obj[60,:,3], label='los')
+plt.plot(water_vapor_los[60], obs_w.los_obj[60,:,3], label='los')
+plt.plot(atmo_box.atm_calibrator.spec_humidity_profile)
 plt.plot((atmo_box.components['water vapor'].field + atmo_box.component_mean['water vapor']['f'].reshape(1, 1, -1))[nside_grid[0]//2, nside_grid[1]//2], atmo_box.grid_wsp.grid_axis(axis=2), label='zenith')
 plt.yscale('log')
 plt.xlabel(r"water vapor density (kg/m${}^3$)")
@@ -268,6 +269,8 @@ plt.ylabel(r"$T_b$ (K)")
 plt.legend(frameon=False)
 plt.savefig(f'./examples/brightness_temp_{freqs_GHz[1]}_{time_utc:%Y-%m-%dT%H:%M}.png', bbox_inches='tight')
 plt.close()
+
+# print(T_atm[0:5,0], T_atm_w[0:5,0])
 
 plt.figure(dpi=200)
 plt.plot(timesamples, T_atm[:,0] - T_atm[:,0].mean(),   '-', lw=0.6, label=f'No wind {freqs_GHz[0]}')
@@ -372,5 +375,90 @@ plt.xlabel('x (m)')
 plt.ylabel('y (m)')
 plt.savefig(f'./examples/precipitable_water_vapor_xy_plane_UTC{time_utc:%Y-%m-%dT%H:%M}.png', bbox_inches='tight')
 plt.close()
+
+# =============================================================================
+# Automated Evolution Animations
+# =============================================================================
+
+import matplotlib.animation as animation
+
+t0 = time.perf_counter()
+
+# Wind profiles converted to pixels/sec for wind_evolved_field roll
+ew_pix_sec = obs_w.east_wind / atmo_box.grid_wsp.grid_spacing[0]
+nw_pix_sec = obs_w.north_wind / atmo_box.grid_wsp.grid_spacing[1]
+
+# Use the full mean+fluctuation field for water vapor
+base_wv_field = atmo_box.components['water vapor'].field + atmo_box.component_mean['water vapor']['f'].reshape(1, 1, -1)
+altitude_axis = atmo_box.grid_wsp.grid_axis(axis=2, altitude_axis=True)
+
+duration_sec = 60
+frames = np.arange(duration_sec, step=0.2)
+
+yz_frames = []
+pwv_frames = []
+
+for t_sec in frames:
+    # Evolve from base_field to time t_sec to retain sub-pixel precision accumulation
+    evolved = a3.obs_utils.wind_evolved_field(base_wv_field, nw_pix_sec, ew_pix_sec, float(t_sec))
+    
+    # 1. Y-Z plane at x = 0
+    yz = evolved[0, :, :].T * 1e3  # convert to g/m^3
+    yz_frames.append(yz)
+    
+    # 2. PWV on X-Y plane
+    pwv = jnp.trapezoid(evolved, x=altitude_axis, axis=2).T
+    pwv_frames.append(pwv[nside_grid[0]//2 - 20:nside_grid[0]//2 + 20, nside_grid[1]//2 - 20:nside_grid[1]//2 + 20])
+
+t1 = time.perf_counter()
+print(f"Generated 60s of frames: {(t1 - t0):.6f} s")
+
+# Animate Y-Z cross-section
+fig_yz, ax_yz = plt.subplots(dpi=150)
+im_yz = ax_yz.imshow(
+    yz_frames[0], 
+    extent=(0, box_length[1], site_altitude, site_altitude + box_length[2]),
+    cmap=cmo.cm.ice_r, origin='lower', vmin=0, vmax=1.3,
+    # vmin=np.min(yz_frames), vmax=np.max(yz_frames)
+)
+fig_yz.colorbar(im_yz, label='g/m^3', orientation='horizontal')
+ax_yz.set_xlabel('y (m)')
+ax_yz.set_ylabel('z (m)')
+title_yz = ax_yz.set_title(f"Water vapor density y-z plane\nt=0 s")
+
+def update_yz(frame_idx):
+    im_yz.set_data(yz_frames[frame_idx])
+    title_yz.set_text(f"Water vapor density y-z plane\nt={frame_idx} s")
+    return [im_yz, title_yz]
+
+ani_yz = animation.FuncAnimation(fig_yz, update_yz, frames=duration_sec, blit=True)
+ani_yz.save(f'./examples/animated_water_vapor_yz_{time_utc:%Y-%m-%dT%H:%M}.gif', writer='pillow')
+plt.close(fig_yz)
+
+# Animate PWV X-Y plane
+fig_pwv, ax_pwv = plt.subplots(dpi=150)
+pwv_mean = pwv_plane.mean()
+pwv_std = pwv_plane.std()
+im_pwv = ax_pwv.imshow(
+    pwv_frames[0],
+    extent=(0, 40 * atmo_box.grid_wsp.grid_spacing[0], 0, 40 * atmo_box.grid_wsp.grid_spacing[1]),
+    cmap=cmo.cm.algae, origin='lower',
+    vmin=pwv_mean - 3 * pwv_std, vmax=pwv_mean + 3 * pwv_std
+)
+fig_pwv.colorbar(im_pwv, label='mm', shrink=0.8)
+ax_pwv.set_xlabel('x (m)')
+ax_pwv.set_ylabel('y (m)')
+title_pwv = ax_pwv.set_title(f"Precipitable water vapor field\nt=0 s")
+
+def update_pwv(frame_idx):
+    im_pwv.set_data(pwv_frames[frame_idx])
+    title_pwv.set_text(f"Precipitable water vapor field\nt={frame_idx} s")
+    return [im_pwv, title_pwv]
+
+ani_pwv = animation.FuncAnimation(fig_pwv, update_pwv, frames=duration_sec, blit=True)
+ani_pwv.save(f'./examples/animated_pwv_{time_utc:%Y-%m-%dT%H:%M}.gif', writer='pillow')
+plt.close(fig_pwv)
+
+print("Saved animated wind evolution plots.")
 
 

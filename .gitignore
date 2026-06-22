@@ -180,5 +180,6 @@ cython_debug/
 
 
 ./examples/*.png
+*.gif
 examples/distributed_3dfft.py
 examples/atmo_fields_UTC0.npz

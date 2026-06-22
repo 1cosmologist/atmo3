@@ -117,10 +117,10 @@ def los_points_coords_radius(
         Unit vector representing the direction.
     det_pos : jnp.ndarray
         Detector position coordinates.
-    west_wind : float, optional
-        West wind speed in m/s (default is None).
-    south_wind : float, optional
-        South wind speed in m/s (default is None).
+    north_wind : float, optional
+        North wind speed in m/s (default is None).
+    east_wind : float, optional
+        East wind speed in m/s (default is None).
     delta_t : float, optional
         Time step in seconds after generation of the cube (default is 0.0).
     max_radius : bool, optional
@@ -134,10 +134,10 @@ def los_points_coords_radius(
     else:
         mask_r = jnp.ones_like(r, dtype=bool)
     if north_wind is not None and east_wind is not None:
-        # Apply wind correction if west and south winds are provided
+        # Apply wind correction if north and east winds are provided
 
-        x_los += east_wind  * delta_t
-        y_los += north_wind * delta_t
+        x_los -= east_wind  * delta_t
+        y_los -= north_wind * delta_t
     return jnp.array([x_los, y_los, altitude_slice, r, mask_r]).T
 
 
@@ -165,10 +165,10 @@ def los_points_center_and_first_rim(
         Azimuth angle in degrees.
     detector_position : jnp.ndarray
         Detector position coordinates.
-    west_wind : float, optional
-        West wind speed in m/s (default is None).
-    south_wind : float, optional
-        South wind speed in m/s (default is None).
+    north_wind : float, optional
+        North wind speed in m/s (default is None).
+    east_wind : float, optional
+        East wind speed in m/s (default is None).
     delta_t : float, optional
         Time step in seconds after generation of the cube (default is 0.0).
     max_radius : bool, optional
@@ -187,8 +187,8 @@ def los_points_center_and_first_rim(
 
 @jax.jit
 def _wind_evolved_layer(field_sheet, north_wind_slice, east_wind_slice, delta_t_sec):
-    shift_x = east_wind_slice * delta_t_sec
-    shift_y = north_wind_slice * delta_t_sec
+    shift_x = jnp.round(east_wind_slice * delta_t_sec).astype(int)
+    shift_y = jnp.round(north_wind_slice * delta_t_sec).astype(int)
     
     return jnp.roll(field_sheet, [shift_x, shift_y], axis=[0,1]) 
 
