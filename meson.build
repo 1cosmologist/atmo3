@@ -1,6 +1,6 @@
 project(
     'atmo3',
-    version: '0.0.1.a3',
+    version: '0.0.1.b0',
     meson_version: '>=0.63.0',
     default_options: [
       # The default can yield broken results.
@@ -41,12 +41,21 @@ py3_dep = py3.dependency()
 py_sources = [
     'atmo3/__init__.py',
     'atmo3/atmosphere.py',
+    'atmo3/atm_utils.py',
+    'atmo3/box.py',
+    'atmo3/calibration.py',
     'atmo3/constants.py',
     'atmo3/cube.py',
+    'atmo3/emission_utils.py',
+    'atmo3/emission.py',
     'atmo3/grid_utils.py',
     'atmo3/multihost_fft.py',
+    'atmo3/obs_utils.py',
+    'atmo3/observation.py',
     'atmo3/parallel_rng.py',
+    'atmo3/polarized_emission.py',
     'atmo3/power.py',
+    'atmo3/super_grid.py'
 ]
 
 py3.install_sources(py_sources,

@@ -1,124 +1,330 @@
-from . import cube
+from . import box
+from . import super_grid
+from . import calibration 
 from . import grid_utils as gutl
 from . import constants  as const
 import jax
 import jax.numpy as jnp
 import numpy as np
+from datetime import datetime, timezone
 import gc
 
 class Atmosphere:
-    
+    """
+    A 3D atmospheric simulation box that models turbulent fluctuations
+    of physical fields (e.g., temperature, water vapor density) over a
+    rectangular grid.
+
+    The atmosphere is initialized from ERA5 reanalysis profiles and
+    optionally calibrated against on-site meteorological measurements
+    (APEX weather station data).  Each atmospheric component is stored
+    as a :class:`box.Box` instance whose fluctuations are drawn from a
+    user-supplied power spectrum and rescaled by a height-dependent
+    profile derived from ERA5 data.
+    """
+
     def __init__(self, 
-                 nside_grid: int = 128, 
-                 box_length_in_m: float = 10000.0,
-                 site_altitude: float = 0.0
-    ) -> None:
+                 nside_grid: list = [256, 256, 128], 
+                 box_length_in_m: list = [20000.0, 20000.0, 10000.0],
+                 site_altitude: float = 0.0,
+                 site_coordinates: list = [0.0, 0.0],
+                 time_utc: type[datetime] = datetime(2023, 9, 1, 0, 0, tzinfo=timezone.utc),
+                 geopotential_file_era5: str = None,
+                 temperature_file_era5: str = None,
+                 spec_humidity_file_era5: str = None,
+                 apex_datafile: str = None
+        ) -> None:
         
         """
-        Initialize the atmosphere object.
+        Initialize the Atmosphere simulation box.
 
         Parameters
         ----------
-        nside_grid : int, optional
-            Number of cells per side of the grid. Defaults to 128.
-        box_length_in_m : float, optional
-            Box length in meters. Defaults to 10000.0.
+        nside_grid : list of int, optional
+            Number of grid cells along each axis [Nx, Ny, Nz].
+            Defaults to [256, 256, 128].
+        box_length_in_m : list of float, optional
+            Physical size of the simulation box in metres along each
+            axis [Lx, Ly, Lz].  Defaults to [20000.0, 20000.0, 10000.0].
+        site_altitude : float, optional
+            Altitude of the observing site above sea level in metres.
+            Defaults to 0.0.
+        site_coordinates : list of float, optional
+            Geographic coordinates of the site as [longitude, latitude]
+            in degrees. Defaults to [0.0, 0.0].
+        time_utc : datetime, optional
+            UTC timestamp of the simulation epoch.  Used to select the
+            matching ERA5 profile and APEX weather data.
+            Defaults to 2023-09-01 00:00 UTC.
+        geopotential_file_era5 : str, optional
+            Path to an ERA5 geopotential NetCDF file used to build the
+            vertical coordinate of the super-grid.
+        temperature_file_era5 : str, optional
+            Path to an ERA5 temperature NetCDF file used for mean and
+            fluctuation profiles.
+        spec_humidity_file_era5 : str, optional
+            Path to an ERA5 specific-humidity NetCDF file used for mean
+            and fluctuation profiles.
+        apex_datafile : str, optional
+            Path to a CSV file containing APEX weather-station
+            measurements (PWV, temperature, humidity, wind) used to
+            calibrate the simulated profiles.
 
         Attributes
         ----------
-        N : int
-            Number of cells per side of the grid.
-        Lbox : float
-            Box length in meters.
+        N : jnp.ndarray
+            Grid dimensions [Nx, Ny, Nz].
+        Lbox : jnp.ndarray
+            Box dimensions in metres [Lx, Ly, Lz].
+        site_altitude : float
+            Site altitude in metres.
+        session_time : tuple
+            UTC timestamp of the simulation (stored as a one-element
+            tuple due to trailing comma assignment).
+        site_coordinates : jnp.ndarray
+            Site [longitude, latitude] in degrees.
         grid_wsp : gutl.GridWorkspace
-            Grid workspace object.
-        component_names : list
-            List of component names.
+            Grid workspace providing coordinate axes, wavenumber grids,
+            and interpolation helpers.
+        super_grid : super_grid.SuperGrid
+            Vertical super-grid built from ERA5 geopotential data.
+        atm_calibrator : calibration.AtmosphereCalibrator
+            Calibrator that normalises ERA5 profiles to match on-site
+            observations.
+        component_names : list of str
+            Ordered list of registered component names.
         components : dict
-            Dictionary of component objects.
+            Mapping from component name to its :class:`box.Box` instance.
+        component_mean : dict
+            Mapping from component name to its mean-profile dictionary
+            ``{'h': heights, 'f': mean_values}``.
         """
-        self.N               = nside_grid
-        self.Lbox            = box_length_in_m
-        self.site_altitude   = site_altitude
-        self.grid_wsp        = gutl.GridWorkspace(
+        self.N                = jnp.array(nside_grid)
+        self.Lbox             = jnp.array(box_length_in_m)
+        self.site_altitude    = site_altitude
+        self.session_time     = time_utc,
+        self.site_coordinates = jnp.array(site_coordinates)
+        self.grid_wsp         = gutl.GridWorkspace(
                                                 N=self.N, 
                                                 Lbox=self.Lbox, 
                                                 site_altitude=self.site_altitude
                                                 )
+        
+        self.super_grid       = super_grid.SuperGrid(
+                                                geopotential_file=geopotential_file_era5,
+                                                z_max=self.Lbox[2],
+                                                Nz=self.N[2],
+                                                time_utc=self.session_time,
+                                                site_lonlat=self.site_coordinates,
+                                                site_altitude=self.site_altitude
+                                                )
+        
+        self.atm_calibrator   = calibration.AtmosphereCalibrator(
+                                                super_grid=self.super_grid,
+                                                temperature_file=temperature_file_era5,
+                                                sp_humidity_file=spec_humidity_file_era5,
+                                                apexdatafile=apex_datafile,
+                                                )
+        
         self.component_names  = []
         self.components       = {}
-        self.properties_names = []
-        self.properties       = {}
+        self.component_mean   = {}
 
-    def add_component(
+    def _add_component(
         self,
         field_name: str,
         field_unit: str,
         pspec: dict,
-        rescale: dict,
+        zscale: dict,
         seed: int,
         mean: dict = None,
         nsub: int = 1024**3
     ) -> None:
         
         """
-        Add a component to the atmosphere.
+        Register a new turbulent field component in the atmosphere.
+
+        Instantiates a :class:`box.Box` for the requested field and
+        records its mean profile so that callers can later add the mean
+        to the generated fluctuation field.
 
         Parameters
         ----------
         field_name : str
-            Name of the component.
+            Human-readable name used as the dictionary key
+            (e.g. ``'temperature'``, ``'water vapor'``).
         field_unit : str
-            Unit of the component.
+            Physical unit of the field (e.g. ``'K'``, ``'kg / m^3'``).
         pspec : dict
-            Power spectrum of the component.
-        rescale : dict
-            Rescaling factors as a function of height.
+            Isotropic power spectrum with keys:
+
+            - ``'k'``    - wavenumber array (rad m⁻¹)
+            - ``'pofk'`` - power at each wavenumber
+        zscale : dict
+            Height-dependent RMS scaling profile with keys:
+
+            - ``'h'`` - height array (m)
+            - ``'f'`` - amplitude scaling at each height
         seed : int
-            Random seed.
+            Master random seed passed to the parallel RNG stream.
+        mean : dict, optional
+            Mean vertical profile with keys:
+
+            - ``'h'`` - height array (m)
+            - ``'f'`` - mean field value at each height
+
+            Defaults to ``None`` (zero mean).
         nsub : int, optional
-            Number of subsamples for random number generation. Defaults to 1024**3.
+            Sub-stream length for the parallel RNG.  Defaults to
+            ``1024**3``.
         """
         
         self.component_names.append(field_name)
-        self.components[field_name] = cube.Cube(
-            N=self.N,
-            Lbox=self.Lbox,
-            grid_wsp=self.grid_wsp,
-            field_name=field_name,
-            field_unit=field_unit,
-            pspec=pspec,
-            rescale=rescale,
-            mean=mean,
-            seed=seed,
-            nsub=nsub
-        )
+        self.components[field_name] = box.Box(
+                                        grid_wsp=self.grid_wsp,
+                                        field_name=field_name,
+                                        field_unit=field_unit,
+                                        spectrum=pspec,
+                                        zscaling=zscale,
+                                        seed=seed,
+                                        nsub=nsub,                               
+                                    )
+        self.component_mean[field_name] = mean
 
-    def add_property(
-        self,
-        property_name: str,
-        property_unit: str,
-        property_value: dict
-    ) -> None:
-
+    
+    def add_temperature(self,
+                        power_spec: dict, 
+                        seed: int = 13579, 
+                        ) -> None :
         """
-        Add a property to the atmosphere.
+        Add a turbulent temperature component to the atmosphere.
+
+        The height-dependent RMS amplitude and mean profile are taken
+        from the ERA5-calibrated :attr:`atm_calibrator`:
+
+        - Fluctuation scaling: ``atm_calibrator.temp_fluctuation_profile``
+        - Mean profile:        ``atm_calibrator.temperature_profile``
 
         Parameters
         ----------
-        property_name : str
-            Name of the property.
-        property_unit : str
-            Unit of the property.
-        property_value : dict
-            Property value as a function of height.
-        """
+        power_spec : dict
+            Isotropic power spectrum with keys:
 
-        self.properties_names.append(property_name)
-        self.properties[property_name] = {
-            "unit": property_unit,
-            "value": property_value
-        }
+            - ``'k'``    - wavenumber array (rad m⁻¹)
+            - ``'pofk'`` - power at each wavenumber
+        seed : int, optional
+            Master random seed for the temperature RNG stream.
+            Defaults to 13579.
+        """
+        self._add_component(
+            field_name='temperature',
+            field_unit='K',
+            pspec=power_spec,
+            zscale={'h': self.super_grid.z, 'f':self.atm_calibrator.temp_fluctuation_profile},
+            seed=seed,
+            mean= {'h': self.super_grid.z, 'f': self.atm_calibrator.temperature_profile},
+        )
+        
+    def add_watervapor(self,
+                       power_spec:dict,
+                       seed: int = 24680,
+                       ) -> None :
+        """
+        Add a turbulent water-vapor density component to the atmosphere.
+
+        The ERA5 specific-humidity profiles are converted to water-vapor
+        mass density (kg m⁻³) via the factor
+        ``atm_calibrator.q2rho_h2o = p / (R_dry · T_virtual)``:
+
+        - Fluctuation scaling: ``atm_calibrator.spec_humidity_fluctuation_profile * q2rho_h2o``
+        - Mean profile:        ``atm_calibrator.spec_humidity_profile * q2rho_h2o``
+
+        Parameters
+        ----------
+        power_spec : dict
+            Isotropic power spectrum with keys:
+
+            - ``'k'``    - wavenumber array (rad m⁻¹)
+            - ``'pofk'`` - power at each wavenumber
+        seed : int, optional
+            Master random seed for the water-vapor RNG stream.
+            Defaults to 24680.
+        """
+        self._add_component(
+            field_name='water vapor',
+            field_unit='kg / m^3',
+            pspec=power_spec,
+            zscale={'h': self.super_grid.z, 'f':self.atm_calibrator.spec_humidity_fluctuation_profile*self.atm_calibrator.q2rho_h2o},
+            seed=seed,
+            mean= {'h': self.super_grid.z, 'f': self.atm_calibrator.spec_humidity_profile*self.atm_calibrator.q2rho_h2o},
+        )
+        
+    def add_cloud(self,
+                power_spec: dict, 
+                seed: int = 424242, 
+                ) -> None :
+        """
+        Add turbulent cloud components (ice and liquid water) to the atmosphere.
+        This initializes a standardized base fluctuation field.
+        """
+        z_array = self.super_grid.z
+        
+        # 1. Add the underlying standardized fluctuation field
+        self._add_component(
+            field_name='cloud fluctuations',
+            field_unit='unitless',
+            pspec=power_spec,
+            zscale={'h': z_array, 'f': jnp.ones_like(z_array)}, # Note: parameter is zscale here, mapped to zscaling inside _add_component
+            seed=seed,
+            mean={'h': z_array, 'f': jnp.zeros_like(z_array)},
+        )
+        
+        # 2. Register the derived component names so generate_realization recognizes them
+        for name in ['cloud', 'ice water', 'liquid water']:
+            if name not in self.component_names:
+                self.component_names.append(name)
+
+
+    def _derive_cloud_cubes(self):
+        """
+        Derives the 3D cloud mask, ice cube, and liquid cube from the 
+        base cloud fluctuations and ERA5 1D profiles.
+        """
+        if 'cloud fluctuations' not in self.components:
+            return
+
+        # Extract base fluctuations and 1D profiles from calibrator
+        fluctuations_cloud = self.components['cloud fluctuations'].field
+        cc_interp = self.atm_calibrator.cc_profile
+        
+        nz = fluctuations_cloud.shape[2]
+
+        # Flatten spatial dims: (nz, nx * ny)
+        fluct_flat = jnp.transpose(fluctuations_cloud, (2, 0, 1)).reshape(nz, -1)
+        q_targets = jnp.clip(1.0 - cc_interp, 0.0, 1.0)
+
+        # Vectorized quantile thresholding
+        layer_thresholds = jax.vmap(jnp.quantile)(fluct_flat, q_targets)
+
+        thresholds_3d = layer_thresholds.reshape(1, 1, nz)
+        cc_3d = cc_interp.reshape(1, 1, nz)
+
+        # Create binary mask
+        cloud_mask = jnp.where(cc_3d > 0.0, fluctuations_cloud >= thresholds_3d, 0).astype(jnp.int8)
+        self.derived_cubes['cloud'] = cloud_mask
+
+        # Process Ice Cube
+        if hasattr(self.atm_calibrator, 'ciwc_profile') and self.atm_calibrator.ciwc_profile is not None:
+            ciwc_interp = self.atm_calibrator.ciwc_profile
+            ice_ratio_1d = jnp.where(cc_interp > 0.0, ciwc_interp / cc_interp, 0.0)
+            self.derived_cubes['ice water'] = cloud_mask * ice_ratio_1d.reshape(1, 1, -1)
+
+        # Process Liquid Cube
+        if hasattr(self.atm_calibrator, 'clwc_profile') and self.atm_calibrator.clwc_profile is not None:
+            clwc_interp = self.atm_calibrator.clwc_profile
+            liquid_ratio_1d = jnp.where(cc_interp > 0.0, clwc_interp / cc_interp, 0.0)
+            self.derived_cubes['liquid water'] = cloud_mask * liquid_ratio_1d.reshape(1, 1, -1)
+
 
     def generate_realization(
         self,
@@ -127,170 +333,30 @@ class Atmosphere:
     ) -> None:
         
         """
-        Generate a realization of the atmospheric component(s).
+        Generate a random-field realization for one or all components.
+
+        This calls :meth:`box.Box.generate_field_realization` for the
+        requested component(s).  If a water-vapor component is
+        (re-)generated, :meth:`calibration.AtmosphereCalibrator.calibrate_pwv`
+        is called automatically to rescale the field so that its
+        column-integrated PWV matches the APEX measurement.
 
         Parameters
         ----------
         time_step : int, optional
-            Time step of the realization. Defaults to 0.
+            Index that seeds the RNG sub-stream, allowing deterministic
+            time-ordered realizations.  Defaults to 0.
         component_name : str, optional
-            Name of the component to generate. If not given, all components are generated.
+            Name of the specific component to generate
+            (e.g. ``'temperature'``, ``'water vapor'``).  If ``None``
+            or not found in :attr:`component_names`, all registered
+            components are generated.  Defaults to ``None``.
         """
         if component_name in self.component_names:
-            self.components[component_name].generate_field_realization(time_step=time_step)
+            self.components[component_name].generate_field_fluctuations(time_step=int(time_step))
+            if component_name == 'water vapor': self.atm_calibrator.calibrate_pwv(self.grid_wsp.grid_axis(axis=2, altitude_axis=True), self.components[component_name])
         else:
             for component in self.components.values():
-                component.generate_field_realization(time_step=time_step)
+                component.generate_field_fluctuations(time_step=int(time_step))
+                if component.field_name == 'water vapor': self.atm_calibrator.calibrate_pwv(self.grid_wsp.grid_axis(axis=2, altitude_axis=True), component)
                 
-    def compute_virtual_temperature(
-        self
-    ) -> None:
-        """
-        Compute virtual temperature from specific humidity and temperature components.
-
-        The virtual temperature is computed as:
-
-        T_v = T * (1.0 + 0.61 * q)
-
-        where T is the temperature, q is the specific humidity, and T_v is the virtual temperature.
-
-        Parameters
-        ----------
-        None
-
-        Returns
-        -------
-        None
-
-        Raises
-        ------
-        ValueError
-            If 'specific humidity' and 'temperature' components are not present.
-        """
-        if not (('specific humidity' in self.component_names) and ('temperature' in self.properties_names)):
-            raise ValueError("Both 'specific humidity' and 'temperature' components must be present to compute virtual temperature.")
-        
-        self.component_names.append('virtual temperature')
-        self.components['virtual temperature'] = cube.Cube(
-            N=self.N,
-            Lbox=self.Lbox,
-            grid_wsp=self.grid_wsp,
-            field_name='virtual temperature',
-            field_unit='K',
-            pspec=None,
-            rescale=None,
-            seed=None,
-            nsub=None
-        )
-        self.components['virtual temperature'].field = self.grid_wsp.interp2grid(self.properties['temperature']['value']['h'], self.properties['temperature']['value']['f']) * (1.0 + 0.61 * self.components['specific humidity'].field)
-
-    def compute_pressure(
-        self,
-        P_surface: float = 55500.
-    ) -> None:
-        """
-        Compute pressure from virtual temperature component.
-
-        The pressure is computed by integrating the hydrostatic equation from the top of the atmosphere to the bottom, using the virtual temperature as the temperature profile.
-
-        Parameters
-        ----------
-        P_surface : float, optional
-            Surface pressure in Pascal. Defaults to 55500.
-
-        Returns
-        -------
-        None
-
-        Raises
-        ------
-        ValueError
-            If 'virtual temperature' component is not present.
-        """
-        if 'virtual temperature' not in self.component_names:
-            raise ValueError("'virtual temperature' component must be present to compute pressure.")
-        
-        self.component_names.append('pressure')
-        self.components['pressure'] = cube.Cube(
-            N=self.N,
-            Lbox=self.Lbox,
-            grid_wsp=self.grid_wsp,
-            field_name='pressure',
-            field_unit='Pa',
-            pspec=None,
-            rescale=None,
-            seed=None,
-            nsub=None
-        )
-
-        self.components['pressure'].field = P_surface * jnp.exp(-(const.g / const.R_dry_air) * jnp.cumsum(self.grid_wsp.grid_spacing / self.components['virtual temperature'].field, axis=2))
-        
-
-    def compute_water_vapor_density(
-        self
-    ) -> None:
-        """
-        Compute water vapor density from specific humidity, pressure, and virtual temperature components.
-
-        The water vapor density is computed by multiplying the specific humidity, pressure, and virtual temperature components, and then dividing by the dry air gas constant and the virtual temperature.
-
-        Raises
-        ------
-        ValueError
-            If 'specific humidity', 'pressure', and 'virtual temperature' components are not present.
-        """
-        if not (('specific humidity' in self.component_names) and ('pressure' in self.component_names) and ('virtual temperature' in self.component_names)):
-            raise ValueError("Components 'specific humidity', 'pressure', and 'virtual temperature' must be present to compute water vapor density.")
-        
-        self.component_names.append('water vapor density')
-        self.components['water vapor density'] = cube.Cube(
-            N=self.N,
-            Lbox=self.Lbox,
-            grid_wsp=self.grid_wsp,
-            field_name='water vapor density',
-            field_unit='kg m-3',
-            pspec=None,
-            rescale=None,
-            seed=None,
-            nsub=None
-        )
-        self.components['water vapor density'].field = self.components['specific humidity'].field * self.components['pressure'].field / const.R_dry_air / self.components['virtual temperature'].field
-
-    def compute_pwv(
-        self
-    ) -> None:
-        """
-        Compute the precipitable water vapor (PWV) from the water vapor density component.
-
-        The PWV is computed by integrating the water vapor density field along the altitude axis.
-
-        Parameters
-        ----------
-        None
-
-        Returns
-        -------
-        None
-
-        Raises
-        ------
-        ValueError
-            If 'water vapor density' component is not present.
-
-        Notes
-        -----
-        The PWV is computed by integrating the water vapor density field along the altitude axis, and then converting the result from kg m-2 to mm by assuming 1 kg m-2 = 1 mm of PWV.
-        """
-        z_axis = self.grid_wsp.grid_axis(altitude_axis=True)
-        
-        self.add_property(
-            property_name='precipitable water vapor',
-            property_unit='mm',
-            property_value={
-                'h': self.site_altitude,
-                'f': jnp.trapezoid(self.components['water vapor density'].field, x=z_axis, axis=2)  # Assuming 1 kg m-2 = 1 mm of PWV
-            }
-        )
-        
-    def compute_emission(self):
-        pass

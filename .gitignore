@@ -177,4 +177,9 @@ cython_debug/
 
 # VS Code
 .vscode/
-=
+
+
+./examples/*.png
+*.gif
+examples/distributed_3dfft.py
+examples/atmo_fields_UTC0.npz
