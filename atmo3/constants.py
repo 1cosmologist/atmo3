@@ -68,3 +68,110 @@ H2O_DATA = {
     'f0': H2O_f0, 'b1': H2O_b1, 'b2': H2O_b2, 
     'b3': H2O_b3, 'b4': H2O_b4, 'b5': H2O_b5, 'b6': H2O_b6
 }
+
+# ==============================================================================
+# Ice Complex Permittivity Data (Mätzler 2006)
+# ==============================================================================
+
+# --- Real Part (epsilon_prime) ---
+# Linear temperature dependence (Eq. 5.30)
+ICE_EPS_INF = 3.1884
+ICE_EPS_T_COEFF = 9.1e-4
+ICE_T_REF_REAL = 273.0
+
+# --- Imaginary Part (epsilon_double_prime) ---
+# Alpha term (low-frequency Debye relaxation tail)
+ICE_THETA_T_REF = 300.0
+ICE_ALPHA_0 = 0.00504
+ICE_ALPHA_1 = 0.0062
+ICE_ALPHA_EXP = -22.1
+
+# Beta_M term (Mishima cold ice baseline term)
+ICE_BETA_B1 = 0.0207
+ICE_BETA_B = 335.0
+ICE_BETA_B2 = 1.16e-11
+
+# Delta_beta term (Empirical correction for warmer temperatures)
+ICE_DELTA_BETA_0 = -9.963
+ICE_DELTA_BETA_1 = 0.0372
+ICE_T_REF_TRIPLE = 273.16
+
+ICE_DATA = {
+    'eps_inf': ICE_EPS_INF,
+    'eps_t_coeff': ICE_EPS_T_COEFF,
+    't_ref_real': ICE_T_REF_REAL,
+    'theta_t_ref': ICE_THETA_T_REF,
+    'alpha_0': ICE_ALPHA_0,
+    'alpha_1': ICE_ALPHA_1,
+    'alpha_exp': ICE_ALPHA_EXP,
+    'beta_b1': ICE_BETA_B1,
+    'beta_b': ICE_BETA_B,
+    'beta_b2': ICE_BETA_B2,
+    'delta_beta_0': ICE_DELTA_BETA_0,
+    'delta_beta_1': ICE_DELTA_BETA_1,
+    't_ref_triple': ICE_T_REF_TRIPLE
+}
+
+
+# ==============================================================================
+# Liquid Water Complex Permittivity Data
+# ==============================================================================
+
+# Hamelin et al. (1998) Static Dielectric Constant
+LIQUID_WATER_HAMELIN_COEFFS = {
+    "s0": 87.9144,
+    "s1": -0.404399,
+    "s2": 9.58726e-4,
+    "s3": -1.32802e-6,
+}
+
+# Hybrid Model (TKC 2016 + Ellison 2007)
+LIQUID_WATER_HYBRID_COEFFS = {
+    # --- TKC: first two Debye terms ---
+    "a1": 8.111e1,
+    "b1": 4.434e-3,
+    "c1": 1.302e-13,
+    "d1": 6.627e2,
+
+    "a2": 2.025e0,
+    "b2": 1.073e-2,
+    "c2": 1.012e-14,
+    "d2": 6.089e2,
+
+    # TKC critical temperature, expressed in Celsius-shift form
+    "tc": 1.342e2,
+
+    # --- Ellison 2007: third Debye relaxation ---
+    "a3": 1.634967,
+    "b3": 0.006841548,
+    "c3": 6.30035e-15,
+    "d3": 405.5169,
+
+    # --- Ellison 2007: first far-IR resonance ---
+    "p0": 0.8379692,
+    "p1": -0.006118594,
+    "p2": -0.000012936798,
+
+    "p3": 4.235901e12,
+    "p4": -1.426088e10,
+    "p5": 2.738157e8,
+    "p6": -1.246943e6,
+
+    "p7": 9.618642e-14,
+    "p8": 1.795786e-16,
+    "p9": -9.310017e-18,
+    "p10": 1.655473e-19,
+
+    # --- Ellison 2007: second far-IR resonance ---
+    "p11": 0.6165532,
+    "p12": 0.007238532,
+    "p13": -0.00009523366,
+
+    "p14": 1.598317e13,
+    "p15": -7.441357e10,
+    "p16": 4.97448e8,
+
+    "p17": 2.882476e-14,
+    "p18": -3.142118e-16,
+    "p19": 3.528051e-18,
+}

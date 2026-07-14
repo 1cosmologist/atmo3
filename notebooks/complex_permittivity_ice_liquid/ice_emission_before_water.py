@@ -190,20 +190,18 @@ def compute_depolarization_factor(m):
     return delta
 
 
-@partial(jax.jit, static_argnames=['is_liquid'])
-def compute_intrinsic_polarizabilities(freqs_in_GHz, m, T_los, is_liquid=False):
+@jax.jit
+def compute_intrinsic_polarizabilities(freqs_in_GHz, m):
     """
-    Computes inherent polarizabilities using dynamic permittivity.
-    Returns 3D arrays of shape (n_scans, Nf, n_los).
+    Computes inherent polarizabilities.
+    freqs_in_GHz: 1D array of shape (Nf,)
+    m: scalar float
+    Returns: A_par, A_perp of shape (Nf,)
     """
-    # Broadcast to 3D: (n_scans, Nf, n_los)
-    freqs_3d = freqs_in_GHz[None, :, None]
-    T_3d = T_los[:, None, :]
-    
-    if is_liquid:
-        eps = complex_permittivity_liquid_water_hybrid_K(T_3d, freqs_3d)
-    else:
-        eps = complex_permittivity_ice(T_3d, freqs_3d)
+    eps_prime = 3.16
+    # Note: Ensure frequency logic matches atmo3 conventions (usually GHz)
+    eps_double_prime = 8e-3 * (freqs_in_GHz / 150.0) 
+    eps = eps_prime + 1j * eps_double_prime # Shape: (Nf,)
     
     delta = compute_depolarization_factor(m) # Scalar
     
@@ -213,13 +211,13 @@ def compute_intrinsic_polarizabilities(freqs_in_GHz, m, T_los, is_liquid=False):
     return A_par, A_perp
 
 
-@partial(jax.jit, static_argnames=['is_liquid'])
-def compute_effective_polarizability(freqs_in_GHz, m, elevation_deg, T_los, is_liquid=False):
+@jax.jit
+def compute_effective_polarizability(freqs_in_GHz, m, elevation_deg):
     """
     Projects polarizabilities onto the telescope line of sight.
-    Returns Stokes I and Q components as 3D arrays (n_scans, Nf, n_los).
+    Returns both Stokes I and Q components to remain JIT-compatible.
     """
-    A_par, A_perp = compute_intrinsic_polarizabilities(freqs_in_GHz, m, T_los, is_liquid)
+    A_par, A_perp = compute_intrinsic_polarizabilities(freqs_in_GHz, m)
     
     abs2_par = jnp.abs(A_par)**2
     abs2_perp = jnp.abs(A_perp)**2
@@ -240,6 +238,7 @@ def compute_effective_polarizability(freqs_in_GHz, m, elevation_deg, T_los, is_l
     imag_v_column = imag_perp
     imag_h_column = (imag_par + imag_perp) / 2.0
     
+    # Apply conditions using jnp.where
     abs2_v = jnp.where(m > 1.0, abs2_v_column, jnp.where(m < 1.0, abs2_v_plate, abs2_v_sphere))
     abs2_h = jnp.where(m > 1.0, abs2_h_column, jnp.where(m < 1.0, abs2_h_plate, abs2_h_sphere))
     imag_v = jnp.where(m > 1.0, imag_v_column, jnp.where(m < 1.0, imag_v_plate, imag_v_sphere))
@@ -249,41 +248,41 @@ def compute_effective_polarizability(freqs_in_GHz, m, elevation_deg, T_los, is_l
     cos2_eps = jnp.cos(eps_rad)**2
     sin2_eps = jnp.sin(eps_rad)**2
     
+    # Stokes I 
     eff_abs2_I = 0.5 * (abs2_v * cos2_eps + abs2_h * (1.0 + sin2_eps))
     eff_imag_I = 0.5 * (imag_v * cos2_eps + imag_h * (1.0 + sin2_eps))
     
+    # Stokes Q
     eff_abs2_Q = 0.5 * (abs2_v - abs2_h) * cos2_eps
     eff_imag_Q = 0.5 * (imag_v - imag_h) * cos2_eps
 
     return eff_abs2_I, eff_imag_I, eff_abs2_Q, eff_imag_Q
 
 
-@partial(jax.jit, static_argnames=['is_liquid'])
-def compute_polarizability(freqs_in_GHz, m, T_los, is_liquid=False):
+@jax.jit
+def compute_polarizability(freqs_in_GHz, m):
     """
     Vectorized computation of complex polarizabilities (alpha_h, alpha_v).
-    Returns 3D arrays of shape (n_scans, Nf, n_los).
     """
-    freqs_3d = freqs_in_GHz[None, :, None]
-    T_3d = T_los[:, None, :]
-    
-    if is_liquid:
-        eps = complex_permittivity_liquid_water_hybrid_K(T_3d, freqs_3d)
-    else:
-        eps = complex_permittivity_ice(T_3d, freqs_3d)
+    eps_prime = 3.16
+    eps_double_prime = 8e-3 * (freqs_in_GHz / 150.0) 
+    eps = eps_prime + 1j * eps_double_prime 
     
     delta = compute_depolarization_factor(m) 
     
+    # Note: 4 * pi term added here compared to intrinsic_polarizabilities
     A_par = (eps - 1.0) / (4.0 * jnp.pi * (1.0 + (eps - 1.0) * delta))
     A_perp = (eps - 1.0) / (4.0 * jnp.pi * (1.0 + (eps - 1.0) * (1.0 - delta) / 2.0))
     
     alpha_v_sphere, alpha_h_sphere = A_par, A_par
     alpha_v_plate, alpha_h_plate = A_par, A_perp
+    
     alpha_v_column = A_perp
     
     target_abs2_h = (jnp.abs(A_par)**2 + jnp.abs(A_perp)**2) / 2.0
     target_imag_h = (jnp.imag(A_par) + jnp.imag(A_perp)) / 2.0
     
+    # Safe eval for square root
     real_h_column = jnp.sqrt(jnp.maximum(0.0, target_abs2_h - target_imag_h**2))
     alpha_h_column = real_h_column + 1j * target_imag_h
     
@@ -295,14 +294,13 @@ def compute_polarizability(freqs_in_GHz, m, T_los, is_liquid=False):
 
 
 
-# ==============================================================================
-# Emission Integration (Updated for 3D logic)
-# ==============================================================================
 
-@partial(jax.jit, static_argnames=['is_liquid'])
-def get_particle_emission(T_los, particle_density_los, r_eq, tau_zenith, ds, freqs_in_GHz, m, elevation_deg, is_liquid=False):
+
+@jax.jit
+def get_ice_emission(T_los, ice_density_los, r_eq, tau_zenith, ds, freqs_in_GHz, m, elevation_deg):
     """
-    Computes the Stokes I and Q Planck intensity emission from particles along the LOS.
+    Computes the Stokes I and Q Planck intensity emission from ice crystals along the LOS.
+    
     T_los: jnp.ndarray shape (n_scans, n_los) - Temperature in K
     ice_density_los: jnp.ndarray shape (n_scans, n_los) - Number density (N_0) in particles/m^3
     r_eq: float - Equivalent radius of the ice crystals in meters
@@ -312,44 +310,62 @@ def get_particle_emission(T_los, particle_density_los, r_eq, tau_zenith, ds, fre
     m: float - Aspect ratio
     elevation_deg: float - Telescope elevation for the scan
     """
-    # 1. Compute Polarizabilities (Now natively 3D: n_scans, Nf, n_los)
-    _, eff_imag_I, _, eff_imag_Q = compute_effective_polarizability(freqs_in_GHz, m, elevation_deg, T_los, is_liquid)
     
-    p_gamma = jnp.where(eff_imag_I != 0, eff_imag_Q / eff_imag_I, 0.0)
+    # 1. Compute Polarizabilities (Shape: Nf)
+    _, eff_imag_I, _, eff_imag_Q = compute_effective_polarizability(freqs_in_GHz, m, elevation_deg)
+    
+    # Intrinsic polarization fraction of the ice crystals (Stokes Q / Stokes I)
+    p_gamma = jnp.where(eff_imag_I != 0, eff_imag_Q / eff_imag_I, 0.0) # Shape: (Nf,)
+    p_gamma_3d = p_gamma[None, :, None] # Shape: (1, Nf, 1)
 
     # 2. Physics Constants & Particle Volume
     freqs_Hz = freqs_in_GHz * constants.giga
-    k_1_3d = (2.0 * jnp.pi * freqs_Hz / constants.c)[None, :, None]
+    k_1 = 2.0 * jnp.pi * freqs_Hz / constants.c # Shape: (Nf,)
     
     V = (4.0 / 3.0) * jnp.pi * (r_eq ** 3)
     
-    # 3. Specific Attenuation (alpha_abs_I)
-    sigma_abs_I = k_1_3d * V * eff_imag_I 
-    alpha_abs_I = particle_density_los[:, None, :] * sigma_abs_I # units: m^-1
+    # 3. Specific Attenuation for Ice (alpha_abs_I)
+    k_1_3d = k_1[None, :, None]
+    eff_imag_I_3d = eff_imag_I[None, :, None]
     
-    # 4. Optical Depths per cell
+    sigma_abs_I = k_1_3d * V * eff_imag_I_3d # Shape: (1, Nf, 1)
+    
+    # alpha = N_0 * sigma
+    N_0_3d = ice_density_los[:, None, :] # Shape: (n_scans, 1, n_los)
+    alpha_abs_I = N_0_3d * sigma_abs_I # units: m^-1
+    
+    # 4. Optical Depths per cell (d_tau_ice_I)
     ds_3d = ds[:, None, :] if ds.ndim == 2 else ds[None, None, :]
-    d_tau_particle_I = alpha_abs_I * ds_3d
+    d_tau_ice_I = alpha_abs_I * ds_3d
     
     # 5. Telescope Airmass & Gas Attenuation
     zenith_angle_deg = 90.0 - elevation_deg
     m_telescope = 1.0 / (jnp.cos(jnp.radians(zenith_angle_deg)) + 0.50572 * (96.07995 - zenith_angle_deg)**(-1.6364))
     
+    # Optical depth of the gas from the ground to the cell along the LOS
     tau_lower_los = tau_zenith * m_telescope
     attenuation_los = jnp.exp(-jnp.clip(tau_lower_los, 0.0, None))
     
-    # 6. Radiative Transfer
-    B_nu_source = B_nu_T(freqs_in_GHz[None, :, None], T_los[:, None, :])
-    B_nu_cell_I = B_nu_source * (1.0 - jnp.exp(-d_tau_particle_I))
+    # 6. Radiative Transfer (Rayleigh-Jeans Source Function)
+    #T_source = T_los[:, None, :] # Shape: (n_scans, 1, n_los)
+
+    # 6. Radiative Transfer (Planck Source Function)
+    B_nu_source = B_nu_T(freqs_in_GHz[None, :, None], T_los[:, None, :]) # Shape: (n_scans, Nf, n_los)
     
-    B_nu_layer_I = B_nu_cell_I * attenuation_los
-    B_nu_layer_Q = p_gamma * B_nu_layer_I  # p_gamma is natively 3D now
+    # Raw emission from the ice in the cell
+    B_nu_ice_cell_I = B_nu_source * (1.0 - jnp.exp(-d_tau_ice_I))
     
-    # 7. Integrate along the Line of Sight
-    B_nu_sky_I = jnp.sum(B_nu_layer_I, axis=2)
-    B_nu_sky_Q = jnp.sum(B_nu_layer_Q, axis=2)
+    # Attenuate the ice emission by the atmospheric gas below it
+    B_nu_ice_layer_I = B_nu_ice_cell_I * attenuation_los
+    B_nu_ice_layer_Q = p_gamma_3d * B_nu_ice_layer_I
+    
+    # 7. Integrate along the Line of Sight (sum across axis 2)
+    B_nu_sky_I = jnp.sum(B_nu_ice_layer_I, axis=2)
+    B_nu_sky_Q = jnp.sum(B_nu_ice_layer_Q, axis=2)
     
     return B_nu_sky_I, B_nu_sky_Q
+
+
 
 
 # ==============================================================================
@@ -424,8 +440,8 @@ def compute_B_in_3d(theta_grid, T_los, T_ground, tau_zenith, tau_total_zenith, f
         m_gnd = 1.0 / jnp.maximum(jnp.cos(jnp.pi - tg), 0.01)
         B_gnd_eff = B_gnd * jnp.exp(-tau_below * m_gnd) + B_mid * (1.0 - jnp.exp(-tau_below * m_gnd))
     else:
-        B_sky = 0.0
-        B_gnd_eff = B_gnd
+        B_sky = jnp.zeros_like(tg)
+        B_gnd_eff = jnp.full_like(tg, B_gnd)
 
     bound_sky = jnp.pi / 2.0
     B_in = jnp.where(tg <= bound_sky, B_sky, B_gnd_eff)
@@ -434,15 +450,16 @@ def compute_B_in_3d(theta_grid, T_los, T_ground, tau_zenith, tau_total_zenith, f
 
 
 # ==============================================================================
-# Scattering Integration (Updated for 3D logic)
+# Main Scattering Integration
 # ==============================================================================
 
-@partial(jax.jit, static_argnames=['N_theta', 'N_phi', 'consider_atmospheric_emission', 'is_liquid'])
-def get_particle_scattering(T_los, particle_density_los, r_eq, ds, freqs_in_GHz, m, elevation_deg,
-                            tau_zenith, tau_total_zenith,
-                            N_theta=30, N_phi=30, consider_atmospheric_emission=True, is_liquid=False):
+@partial(jax.jit, static_argnames=['N_theta', 'N_phi', 'consider_atmospheric_emission'])
+def get_ice_scattering(T_los, ice_density_los, r_eq, ds, freqs_in_GHz, m, elevation_deg,
+                       tau_zenith, tau_total_zenith,
+                       N_theta=30, N_phi=30, consider_atmospheric_emission=True):
     """
-    Computes the Stokes I and Q Planck scattered intensity from particles.
+    Computes the Stokes I and Q Planck scattered intensity from ice crystals.
+    
     T_los: (n_scans, n_los) 
     ice_density_los: (n_scans, n_los) - N_0 in particles/m^3
     r_eq: float - equivalent radius in meters
@@ -455,9 +472,10 @@ def get_particle_scattering(T_los, particle_density_los, r_eq, ds, freqs_in_GHz,
     """
     delta = jnp.radians(elevation_deg)
     
-    # 1. Telescope Airmass & LOS Optical Depth
+    # 1. Telescope Airmass & LOS Optical Depth to Telescope
     zenith_angle_deg = 90.0 - elevation_deg
     m_telescope = 1.0 / (jnp.cos(jnp.radians(zenith_angle_deg)) + 0.50572 * (96.07995 - zenith_angle_deg)**(-1.6364))
+    
     tau_lower_los = tau_zenith * m_telescope
     attenuation_los = jnp.exp(-jnp.clip(tau_lower_los, 0.0, None))
     
@@ -470,23 +488,25 @@ def get_particle_scattering(T_los, particle_density_los, r_eq, ds, freqs_in_GHz,
     sin_tg = jnp.sin(theta_grid)[None, None, None, :, :] 
     
     # 3. Polarizability & Phase Matrix
-    alpha_h, alpha_v = compute_polarizability(freqs_in_GHz, m, T_los, is_liquid)
+    alpha_h, alpha_v = compute_polarizability(freqs_in_GHz, m)
     
-    # Expand 3D alpha to 5D (n_scans, Nf, n_los, 1, 1) to match angular grid
-    alpha_h_exp = alpha_h[:, :, :, None, None]
-    alpha_v_exp = alpha_v[:, :, :, None, None]
+    alpha_h_exp = alpha_h[:, None, None]
+    alpha_v_exp = alpha_v[:, None, None]
     
-    tg_pm = theta_grid[None, None, None, :, :]
-    pg_pm = phi_grid[None, None, None, :, :]
+    tg_pm = theta_grid[None, :, :]
+    pg_pm = phi_grid[None, :, :]
     
-    # Earth frame logic now natively yields 5D arrays
-    M11_5d, M21_5d = compute_earth_frame_phase_matrix(alpha_h_exp, alpha_v_exp, tg_pm, pg_pm, delta)
+    M11, M21 = compute_earth_frame_phase_matrix(alpha_h_exp, alpha_v_exp, tg_pm, pg_pm, delta)
+    M11_5d = M11[None, :, None, :, :]
+    M21_5d = M21[None, :, None, :, :]
     
     # 4. Incoming Radiation Field
+    # Extract ground temperature from the lowest cell of the LOS for each scan
     T_ground = T_los[:, 0]
-    B_in = compute_B_in_3d(theta_grid, T_los, T_ground, tau_zenith, tau_total_zenith, freqs_in_GHz, consider_atmospheric_emission)
+    B_in = compute_B_in_3d(theta_grid, T_los, T_ground, tau_zenith, tau_total_zenith, freqs_in_GHz,
+                           consider_atmospheric_emission)
     
-    # 5. Angular Integration
+    # 5. Angular Integration (dOmega = sin(theta) dtheta dphi)
     integral_I = jnp.sum(B_in * M11_5d * sin_tg, axis=(-2, -1)) * dtheta * dphi # Shape: (n_scans, Nf, n_los)
     integral_Q = jnp.sum(B_in * M21_5d * sin_tg, axis=(-2, -1)) * dtheta * dphi 
     
@@ -495,10 +515,12 @@ def get_particle_scattering(T_los, particle_density_los, r_eq, ds, freqs_in_GHz,
     k_4 = (2.0 * jnp.pi * freqs_Hz / constants.c)**4 
     V_squared = (16.0 / 9.0) * (jnp.pi**2) * (r_eq**6)
     
-    C_base = (k_4[None, :, None] * V_squared)
-    ds_3d = ds[:, None, :] if ds.ndim == 2 else ds[None, None, :]
-    C_z = particle_density_los[:, None, :] * ds_3d
+    C_base = k_4[None, :, None] * V_squared 
     
+    ds_3d = ds[:, None, :] if ds.ndim == 2 else ds[None, None, :]
+    C_z = ice_density_los[:, None, :] * ds_3d
+    
+    # Apply attenuation towards the telescope
     layer_signal_I = integral_I * C_z * attenuation_los * C_base
     layer_signal_Q = integral_Q * C_z * attenuation_los * C_base
     
