@@ -1,12 +1,14 @@
 project(
     'atmo3',
-    version: '0.0.1.b0',
+    version: run_command('sh', '-c', 'cat VERSION', check: true).stdout().strip(),
     meson_version: '>=0.63.0',
     default_options: [
       # The default can yield broken results.
       'python.install_env=auto'
     ]
 )
+
+
 
 py_mod = import('python')
 py3 = py_mod.find_installation('python3')
@@ -49,15 +51,30 @@ py_sources = [
     'atmo3/emission_utils.py',
     'atmo3/emission.py',
     'atmo3/grid_utils.py',
+    'atmo3/line_utils.py',
     'atmo3/multihost_fft.py',
     'atmo3/obs_utils.py',
     'atmo3/observation.py',
     'atmo3/parallel_rng.py',
     'atmo3/polarized_emission.py',
     'atmo3/power.py',
-    'atmo3/super_grid.py'
+    'atmo3/super_grid.py',
+    'atmo3/water_continuum_emission.py',
+    'atmo3/water_line_emissions.py'
 ]
 
 py3.install_sources(py_sources,
   subdir: 'atmo3',
+)
+
+data_files = [
+    'data/HITRAN_water_vapor_0-1750GHz.hdf5',
+    'data/mt_ckd_continuum.hdf5',
+    'data/partition_function_water_vapor.hdf5',
+    'data/partition_function_oxygen.hdf5',
+    'data/partition_function_ozone.hdf5',
+]
+
+py3.install_sources(data_files,
+  subdir: 'atmo3/data',
 )
