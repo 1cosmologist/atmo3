@@ -3,8 +3,9 @@ jax.config.update("jax_enable_x64", True)
 import numpy as np
 import matplotlib.pyplot as plt
 import atmo3 as a3 
+import time
 
-nside_grid = 128
+nside_grid = 512
 box_length_in_m = 10000.0
 
 print(f"Initializing atmosphere with nside_grid={nside_grid} and box_length_in_m={box_length_in_m}")
@@ -28,6 +29,7 @@ h_scaling = np.ones_like(h_array) # Rescaling factor
 rescale = {'h': h_array, 'f': h_scaling}
 
 print(f"Adding component: {physical_variable} with unit {variable_unit}")
+start_time = time.time()
 atmo.add_component(
     field_name=physical_variable,
     field_unit=variable_unit,
@@ -35,9 +37,16 @@ atmo.add_component(
     rescale=rescale,
     seed=123456789,
 )
+end_time = time.time()
+print(f"Time to add component: {end_time - start_time:.4f} seconds")
 
 print("Generating realization for the component...")
+
+start_time = time.time()
 atmo.generate_realization(time_step=0)
+end_time = time.time()
+print(f"Time to generate realization: {end_time - start_time:.4f} seconds")
+
 plt.imshow(
     atmo.components[physical_variable].field[0, :, :],
     extent=(0, box_length_in_m, 0, box_length_in_m),
