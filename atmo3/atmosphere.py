@@ -99,8 +99,10 @@ class Atmosphere:
             Mapping from component name to its mean-profile dictionary
             ``{'h': heights, 'f': mean_values}``.
         """
-        self.N                = jnp.array(nside_grid)
-        self.Lbox             = jnp.array(box_length_in_m)
+        # Geometry is always represented by three axes, while retaining the
+        # historical convenience of accepting scalar cubic dimensions.
+        self.N                = jnp.broadcast_to(jnp.asarray(nside_grid), (3,))
+        self.Lbox             = jnp.broadcast_to(jnp.asarray(box_length_in_m), (3,))
         self.site_altitude    = site_altitude
         self.session_time     = time_utc,
         self.site_coordinates = jnp.array(site_coordinates)
@@ -359,4 +361,3 @@ class Atmosphere:
             for component in self.components.values():
                 component.generate_field_fluctuations(time_step=int(time_step))
                 if component.field_name == 'water vapor': self.atm_calibrator.calibrate_pwv(self.grid_wsp.grid_axis(axis=2, altitude_axis=True), component)
-                
