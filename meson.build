@@ -59,8 +59,7 @@ py_sources = [
     'atmo3/polarized_emission.py',
     'atmo3/power.py',
     'atmo3/super_grid.py',
-    'atmo3/water_continuum_emission.py',
-    'atmo3/water_line_emissions.py'
+    'atmo3/water_vapor_emission.py'
 ]
 
 py3.install_sources(py_sources,

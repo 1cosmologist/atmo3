@@ -19,6 +19,7 @@ c = con.c
 k_B = con.k
 h = con.h 
 giga = con.giga
+centi = con.centi
 
 # Second radiation constant (hc/k_B) in [cm * K]
 # Multiplied by 100 to convert from [m * K] to [cm * K]

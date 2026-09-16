@@ -12,5 +12,4 @@ from .obs_utils import *
 from .parallel_rng import *
 from .polarized_emission import *
 from .power import *
-from .water_line_emissions import *
-from .water_continuum_emission import *
+from .water_vapor_emission import *
