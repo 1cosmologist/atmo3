@@ -185,3 +185,7 @@ examples/distributed_3dfft.py
 examples/atmo_fields_UTC0.npz
 
 ._dbindex_
+
+./data/AER_Line_File/*
+./data/AER_LINEFILE_data/*
+./data/hapi_cache/*

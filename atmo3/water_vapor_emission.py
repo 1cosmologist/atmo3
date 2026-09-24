@@ -9,7 +9,7 @@ from . import line_utils as lu
 
 jax.config.update("jax_enable_x64", True)
 
-_linedata_H2O    = Path(__file__).parent.parent / 'data' / 'HITRAN_water_vapor_0-1750GHz.hdf5'
+_linedata_H2O    = Path(__file__).parent.parent / 'data' / 'AER_water_vapor_0-1750GHz.hdf5'
 _partition_H2O   = Path(__file__).parent.parent / 'data' / 'partition_function_water_vapor.hdf5'
 _CONTINUUM_FILE  = Path(__file__).parent.parent / 'data' / 'mt_ckd_continuum.hdf5'
 

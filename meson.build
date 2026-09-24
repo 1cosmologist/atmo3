@@ -67,7 +67,7 @@ py3.install_sources(py_sources,
 )
 
 data_files = [
-    'data/HITRAN_water_vapor_0-1750GHz.hdf5',
+    'data/AER_water_vapor_0-1750GHz.hdf5',
     'data/mt_ckd_continuum.hdf5',
     'data/partition_function_water_vapor.hdf5',
     'data/partition_function_oxygen.hdf5',
