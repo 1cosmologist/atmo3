@@ -186,6 +186,7 @@ examples/atmo_fields_UTC0.npz
 
 ._dbindex_
 
-./data/AER_Line_File/*
-./data/AER_LINEFILE_data/*
-./data/hapi_cache/*
+data/AER_Line_File/*
+data/AER_LINEFILE_data/extra_brd_params/*
+data/AER_LINEFILE_data/*
+data/hapi_cache/*
