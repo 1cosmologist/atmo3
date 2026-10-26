@@ -2,6 +2,7 @@ from . import box
 from . import calibration 
 from . import grid_utils as gutl
 from . import constants  as const
+from .profiles import afgl_profiles
 import jax
 import jax.numpy as jnp
 import numpy as np
@@ -16,8 +17,8 @@ class Atmosphere:
 
     The atmosphere is initialized from standardized weather profiles
     (see :mod:`profiles`), agnostic of their origin, and optionally
-    calibrated against on-site meteorological measurements (APEX
-    weather station data).  Each atmospheric component is stored as a
+    recalibrated against the mean and standard deviation of the
+    temperature and precipitable water vapour measured at the site.  Each atmospheric component is stored as a
     :class:`box.Box` instance whose fluctuations are drawn from a
     user-supplied power spectrum and rescaled by a height-dependent
     profile derived from the input profiles.
@@ -29,8 +30,11 @@ class Atmosphere:
                  site_altitude: float = 0.0,
                  site_coordinates: list = [0.0, 0.0],
                  time_utc: type[datetime] = datetime(2023, 9, 1, 0, 0, tzinfo=timezone.utc),
-                 profiles: dict = None,
-                 apex_datafile: str = None
+                 profiles: dict | str = None,
+                 temperature_mean: float = None,
+                 temperature_std: float = None,
+                 pwv_mean: float = None,
+                 pwv_std: float = None
         ) -> None:
         
         """
@@ -51,13 +55,18 @@ class Atmosphere:
             Geographic coordinates of the site as [longitude, latitude]
             in degrees. Defaults to [0.0, 0.0].
         time_utc : datetime, optional
-            UTC timestamp of the simulation epoch.  Used to select the
-            matching APEX weather data.
+            UTC timestamp of the simulation epoch.
             Defaults to 2023-09-01 00:00 UTC.
-        profiles : dict
-            Standardized weather profiles, independent of their source
-            (see :mod:`profiles`, e.g. :func:`profiles.afgl_profiles`).
-            1-D arrays on a common altitude axis, with keys:
+        profiles : dict or str
+            Weather profiles, independent of their source (see
+            :mod:`profiles`).  Either a dict of measured profiles
+            supplied by the user, or the name of a supported AFGL
+            reference atmosphere (``'tropical'``,
+            ``'midlatitude_summer'``, ``'midlatitude_winter'``,
+            ``'subarctic_summer'``, ``'subarctic_winter'`` or
+            ``'us_standard'``), which is loaded with
+            :func:`profiles.afgl_profiles`.
+            A dict holds 1-D arrays on a common altitude axis, with keys:
 
             - ``'z'``                - altitude above sea level (m)
             - ``'temperature'``      - temperature (K)
@@ -65,10 +74,23 @@ class Atmosphere:
             - ``'specific_humidity'``- specific humidity (kg kg⁻¹)
             - ``'temperature_std'``  - optional RMS temperature
               fluctuation (K)
-        apex_datafile : str, optional
-            Path to a CSV file containing APEX weather-station
-            measurements (PWV, temperature, humidity, wind) used to
-            calibrate the simulated profiles.
+        temperature_mean : float, optional
+            Mean temperature at the site (K).  If given, the temperature
+            profile is rescaled to match it at the lowest grid level.
+        temperature_std : float, optional
+            Standard deviation of the temperature at the site (K).  If
+            given, the temperature fluctuation profile is rescaled to
+            match it at the lowest grid level.
+        pwv_mean : float, optional
+            Mean precipitable water vapour at the site (mm).  If given,
+            the specific-humidity profile is rescaled to match it.
+        pwv_std : float, optional
+            Standard deviation of the precipitable water vapour at the
+            site (mm).  If given, generated water-vapour fluctuations
+            are rescaled to match it.
+
+            Site statistics that are not provided are not calibrated
+            against (see :class:`calibration.AtmosphereCalibrator`).
 
         Attributes
         ----------
@@ -87,10 +109,12 @@ class Atmosphere:
             Grid workspace providing coordinate axes, wavenumber grids,
             and interpolation helpers.
         z : jnp.ndarray
-            Altitude axis of the grid above sea level (m).
+            Altitude axis of the grid above sea level (m), the same as
+            ``grid_wsp.grid_axis(axis=2, altitude_axis=True)``.  All
+            profiles and the mean-profile dictionaries are defined on it.
         atm_calibrator : calibration.AtmosphereCalibrator
             Calibrator that interpolates the input profiles onto ``z``
-            and normalises them to match on-site observations.
+            and, when site statistics are provided, recalibrates them.
         component_names : list of str
             Ordered list of registered component names.
         components : dict
@@ -110,13 +134,18 @@ class Atmosphere:
                                                 site_altitude=self.site_altitude
                                                 )
         
-        self.z                = self.site_altitude + jnp.linspace(0, self.Lbox[2], self.N[2])
+        self.z                = self.grid_wsp.grid_axis(axis=2, altitude_axis=True)
+        
+        if isinstance(profiles, str):
+            profiles = afgl_profiles(profiles)
         
         self.atm_calibrator   = calibration.AtmosphereCalibrator(
                                                 z_grid=self.z,
                                                 profiles=profiles,
-                                                time_utc=time_utc,
-                                                apexdatafile=apex_datafile,
+                                                temperature_mean=temperature_mean,
+                                                temperature_std=temperature_std,
+                                                pwv_mean=pwv_mean,
+                                                pwv_std=pwv_std,
                                                 )
         
         self.component_names  = []
@@ -331,8 +360,9 @@ class Atmosphere:
         This calls :meth:`box.Box.generate_field_realization` for the
         requested component(s).  If a water-vapor component is
         (re-)generated, :meth:`calibration.AtmosphereCalibrator.calibrate_pwv`
-        is called automatically to rescale the field so that its
-        column-integrated PWV matches the APEX measurement.
+        is called automatically to rescale the field so that the
+        standard deviation of its column-integrated PWV matches
+        ``pwv_std``, if provided.
 
         Parameters
         ----------
@@ -347,9 +377,9 @@ class Atmosphere:
         """
         if component_name in self.component_names:
             self.components[component_name].generate_field_fluctuations(time_step=int(time_step))
-            if component_name == 'water vapor': self.atm_calibrator.calibrate_pwv(self.grid_wsp.grid_axis(axis=2, altitude_axis=True), self.components[component_name])
+            if component_name == 'water vapor': self.atm_calibrator.calibrate_pwv(self.z, self.components[component_name])
         else:
             for component in self.components.values():
                 component.generate_field_fluctuations(time_step=int(time_step))
-                if component.field_name == 'water vapor': self.atm_calibrator.calibrate_pwv(self.grid_wsp.grid_axis(axis=2, altitude_axis=True), component)
+                if component.field_name == 'water vapor': self.atm_calibrator.calibrate_pwv(self.z, component)
                 

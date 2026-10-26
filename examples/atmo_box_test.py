@@ -81,13 +81,25 @@ apexfile = f'{atmo3_data}apex/meteo_apex_2006_2025.csv'
 
 t0 = time.perf_counter()
 # =============================================================================
+# Site statistics from the APEX weather station: mean and standard deviation
+# of the temperature (K) and PWV (mm) within ±30 min of time_utc.
+# =============================================================================
+import pandas as pd
+
+t_ref = pd.Timestamp(time_utc).replace(tzinfo=None)
+apex_columns = ['UT', 'PWV', 'Temperature', 'Humidity', 'Wind_Dir', 'Wind_Speed']
+apexdata = pd.read_csv(apexfile, header=None, names=apex_columns, parse_dates=['UT'])
+apexdata = apexdata[(apexdata['UT'] >= t_ref - pd.Timedelta(minutes=30)) & (apexdata['UT'] <= t_ref + pd.Timedelta(minutes=30))]
+apex_temperature = apexdata['Temperature'] + 273.15  # APEX is in Celsius
+
+# =============================================================================
 # Initialise the atmosphere object
 # The weather profiles (z [m], temperature [K], pressure [Pa], specific
 # humidity [kg/kg]) are read from ERA5 at the site; any source providing the
 # same dictionary (e.g. a3.afgl_profiles('midlatitude_summer')) can be used
-# instead.  Profiles are then interpolated to the grid and normalised so that
-# the ground-level temperature and column-integrated PWV match the mean APEX
-# observations recorded within ±30 min of time_utc.
+# instead.  Profiles are then interpolated to the grid and recalibrated so
+# that the ground-level temperature and column-integrated PWV match the APEX
+# statistics.  Omit any of the statistics to skip that calibration.
 # =============================================================================
 era5 = a3.ERA5Handler(geopotfile, time_utc, site_coordinates)
 profiles = era5.profiles(tempfile, spechfile)
@@ -99,7 +111,10 @@ atmo_box = a3.Atmosphere(
     site_coordinates=site_coordinates,
     time_utc=time_utc,
     profiles=profiles,
-    apex_datafile=apexfile
+    temperature_mean=apex_temperature.mean(),
+    temperature_std=apex_temperature.std(),
+    pwv_mean=apexdata['PWV'].mean(),
+    pwv_std=apexdata['PWV'].std()
 )
 
 t1 = time.perf_counter()
@@ -361,7 +376,7 @@ plt.close()
 # The integral is performed via the trapezoidal rule along the altitude axis.
 pwv_plane = jnp.trapezoid(
     atmo_box.components['water vapor'].field + atmo_box.component_mean['water vapor']['f'].reshape(1, 1, -1),
-    x=atmo_box.grid_wsp.grid_axis(axis=2, altitude_axis=True),
+    x=atmo_box.z,
     axis=2
 )
 print(f"PWV mean: {np.mean(pwv_plane):.4f} mm, PWV std: {np.std(pwv_plane):.4f} mm")
@@ -393,7 +408,7 @@ nw_pix_sec = obs_w.north_wind / atmo_box.grid_wsp.grid_spacing[1]
 
 # Use the full mean+fluctuation field for water vapor
 base_wv_field = atmo_box.components['water vapor'].field + atmo_box.component_mean['water vapor']['f'].reshape(1, 1, -1)
-altitude_axis = atmo_box.grid_wsp.grid_axis(axis=2, altitude_axis=True)
+altitude_axis = atmo_box.z
 
 duration_sec = 60
 frames = np.arange(duration_sec, step=0.2)

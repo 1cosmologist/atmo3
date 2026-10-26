@@ -14,15 +14,26 @@ Atmo(sphere) cube - a simulation cube for atmospheric emissions in the microwave
 
 
 ### Usage
-The `Atmosphere` is agnostic of the weather-data source: it is initialised with a
-dictionary of 1-D profiles (`z` [m], `temperature` [K], `pressure` [Pa],
-`specific_humidity` [kg/kg], optional `temperature_std` [K]). Profiles from the
-AFGL (1986) reference atmospheres in `data/afgl_data` are provided by
-`atmo3.afgl_profiles`:
+The `Atmosphere` is agnostic of the weather-data source: `profiles` is either a
+dictionary of measured 1-D profiles (`z` [m], `temperature` [K], `pressure` [Pa],
+`specific_humidity` [kg/kg], optional `temperature_std` [K]), or the name of an
+AFGL (1986) reference atmosphere (`'tropical'`, `'midlatitude_summer'`,
+`'midlatitude_winter'`, `'subarctic_summer'`, `'subarctic_winter'`,
+`'us_standard'`) from `data/afgl_data`:
 
 ```python
-profiles = a3.afgl_profiles('midlatitude_summer')
-atmo = a3.Atmosphere(profiles=profiles, apex_datafile='meteo_apex.csv', ...)
+atmo = a3.Atmosphere(profiles='midlatitude_summer', ...)
+# or, equivalently for a user-supplied dict (e.g. from a3.ERA5Handler or a3.afgl_profiles):
+atmo = a3.Atmosphere(profiles=a3.afgl_profiles('midlatitude_summer'), ...)
+```
+
+The profiles can optionally be recalibrated to the site by passing the mean and
+standard deviation of the temperature [K] and the precipitable water vapour [mm]
+(`temperature_mean`, `temperature_std`, `pwv_mean`, `pwv_std`). Statistics that
+are not given are not calibrated:
+
+```python
+atmo = a3.Atmosphere(profiles='midlatitude_summer', temperature_mean=272.2, pwv_mean=1.15, pwv_std=0.03, ...)
 ```
 
 ### Testing
