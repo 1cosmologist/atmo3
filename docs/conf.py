@@ -52,7 +52,11 @@ html_logo = '_static/atmo3-logo.png'     # atmo3.png cropped to the cube
 html_favicon = '_static/favicon.png'
 html_title = 'atmo3'
 html_theme_options = {
+    "page_layout": "compact",
+    "color_mode": "dark",
     'github_url': 'https://github.com/1cosmologist/atmo3',
     'accent_color': 'violet',
     'globaltoc_expand_depth': 1,
 }
+
+templates_path = ["_templates"]
