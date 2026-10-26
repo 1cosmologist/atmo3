@@ -11,7 +11,9 @@ def rotation_matrix(elevation_in_deg, azimuth_in_deg):
     """
     Create a rotation matrix from elevation and azimuth angles in degrees.
     This transforms coordinates in the focalplane frame to the global frame.
-    Parameters:
+
+    Parameters
+    ----------
     elevation_in_deg : float
         Elevation angle in degrees.
     azimuth_in_deg : float
@@ -26,7 +28,9 @@ def rotation_matrix(elevation_in_deg, azimuth_in_deg):
 def polygonal_vertices(polygon_order, fwhm_in_arcmin):
     """
     Generate the vertices of a regular polygon on the unit sphere corresponding to the given FWHM.
-    Parameters:
+
+    Parameters
+    ----------
     polygon_order : int
         Number of vertices of the polygon.
     fwhm : u.Quantity
@@ -45,7 +49,9 @@ def polygonal_vertices(polygon_order, fwhm_in_arcmin):
 def hexagon_first_rim(fwhm_in_arcmin):
     """
     Generate the vertices of the first rim of a hexagon on the unit sphere corresponding to the given FWHM.
-    Parameters:
+
+    Parameters
+    ----------
     fwhm : u.Quantity
         Full width at half maximum angle, specifying the radius of the hexagon vertices on the unit sphere.
     """
@@ -55,7 +61,9 @@ def hexagon_first_rim(fwhm_in_arcmin):
 def hexagon_second_rim(fwhm_in_arcmin):
     """
     Generate the vertices of the second rim of a hexagon on the unit sphere corresponding to twice the given FWHM.
-    Parameters:
+
+    Parameters
+    ----------
     fwhm : u.Quantity
         Full width at half maximum angle, specifying the radius of the hexagon vertices on the unit sphere.
     """
@@ -68,7 +76,9 @@ def hexagon_second_rim(fwhm_in_arcmin):
 def hexagon_center_and_first_rim(fwhm_in_arcmin):
     """
     Generate the vertices of the center and first rim of a hexagon on the unit sphere corresponding to the given FWHM.
-    Parameters:
+
+    Parameters
+    ----------
     fwhm : u.Quantity
         Full width at half maximum angle, specifying the radius of the hexagon vertices on the unit sphere.
     """
@@ -83,7 +93,9 @@ def unit_vectors_center_and_first_rim(
 ):
     """
     Generate the pointing vectors for the center and first rim of a hexagon pointing in a given direction.
-    Parameters:
+
+    Parameters
+    ----------
     fwhm : u.Quantity
         Full width at half maximum angle, specifying the radius of the hexagon vertices on the unit sphere.
     elevation_in_deg : float
@@ -110,7 +122,9 @@ def los_points_coords_radius(
 ):
     """
     Calculate the line-of-sight points coordinates and radius for a given altitude slice, pointing vector, and detector position.
-    Parameters:
+
+    Parameters
+    ----------
     altitude_slice : float
         Altitude slice value.
     unit_vector : jnp.ndarray
@@ -154,7 +168,9 @@ def los_points_center_and_first_rim(
 ):
     """
     Calculate the line-of-sight points coordinates and radius for the center and first rim of a hexagon at a given altitude slice.
-    Parameters:
+
+    Parameters
+    ----------
     altitude_slice : float
         Altitude slice value.
     fwhm : u.Quantity

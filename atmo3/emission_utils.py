@@ -5,11 +5,16 @@ from functools import partial
 
 def B_nu_T(nu_in_GHz, T_bb):
     """
-    B_nu_T is the Planck distribution function, defined as: 
+    B_nu_T is the Planck distribution function, defined as:
+
     .. math::
+
         B(\\nu, T) = \\frac{2 h \\nu^3}{c^2} \\frac{1}{e^{x} - 1},
-    with 
+
+    with
+
     .. math::
+
         x = \\frac{h \\nu}{k_B T}.
     
     It returns the Planck function values for nu (can be vectorized) 
@@ -19,9 +24,8 @@ def B_nu_T(nu_in_GHz, T_bb):
     ----------
     nu_in_GHz : float or numpy ndarray
         Frequency in GHz at which we want the value of the Planck function.
-    T_planck : float, optional
+    T_bb : float or numpy ndarray
         Temperature of the Planck distribution in Kelvin.
-        Default value set to the CMB monopole temperature of 2.7255 K.
 
     Returns
     -------

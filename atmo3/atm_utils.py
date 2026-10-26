@@ -135,6 +135,25 @@ def relative_to_specific_humidity(RH, T, altitude, Kelvin=False):
     q = (epsilon * P_wv) / (P_total - P_wv * (1 - epsilon))
     return q
 
+def volume_mixing_ratio_to_specific_humidity(vmr):
+    """Convert a water-vapour volume mixing ratio to specific humidity.
+
+    Parameters
+    ----------
+    vmr : float or np.ndarray or jnp.ndarray
+        Water-vapour mole fraction, ``n_H2O / n_total`` (dimensionless),
+        where ``n_total`` is the number density of moist air.
+
+    Returns
+    -------
+    q : float or np.ndarray or jnp.ndarray
+        Specific humidity (kg/kg), i.e. the water-vapour mass fraction
+        of moist air.
+    """
+    m_h2o = const.molar_mass_water_vapor
+    m_dry = const.molar_mass_dry_air
+    return vmr * m_h2o / (vmr * m_h2o + (1.0 - vmr) * m_dry)
+
 def virtual_temperature(T, q):
     """Calculate virtual temperature.
 

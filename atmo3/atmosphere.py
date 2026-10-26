@@ -1,8 +1,8 @@
 from . import box
-from . import super_grid
 from . import calibration 
 from . import grid_utils as gutl
 from . import constants  as const
+from .profiles import afgl_profiles
 import jax
 import jax.numpy as jnp
 import numpy as np
@@ -15,12 +15,13 @@ class Atmosphere:
     of physical fields (e.g., temperature, water vapor density) over a
     rectangular grid.
 
-    The atmosphere is initialized from ERA5 reanalysis profiles and
-    optionally calibrated against on-site meteorological measurements
-    (APEX weather station data).  Each atmospheric component is stored
-    as a :class:`box.Box` instance whose fluctuations are drawn from a
+    The atmosphere is initialized from standardized weather profiles
+    (see :mod:`profiles`), agnostic of their origin, and optionally
+    recalibrated against the mean and standard deviation of the
+    temperature and precipitable water vapour measured at the site.  Each atmospheric component is stored as a
+    :class:`box.Box` instance whose fluctuations are drawn from a
     user-supplied power spectrum and rescaled by a height-dependent
-    profile derived from ERA5 data.
+    profile derived from the input profiles.
     """
 
     def __init__(self, 
@@ -29,10 +30,11 @@ class Atmosphere:
                  site_altitude: float = 0.0,
                  site_coordinates: list = [0.0, 0.0],
                  time_utc: type[datetime] = datetime(2023, 9, 1, 0, 0, tzinfo=timezone.utc),
-                 geopotential_file_era5: str = None,
-                 temperature_file_era5: str = None,
-                 spec_humidity_file_era5: str = None,
-                 apex_datafile: str = None
+                 profiles: dict | str = None,
+                 temperature_mean: float = None,
+                 temperature_std: float = None,
+                 pwv_mean: float = None,
+                 pwv_std: float = None
         ) -> None:
         
         """
@@ -53,22 +55,42 @@ class Atmosphere:
             Geographic coordinates of the site as [longitude, latitude]
             in degrees. Defaults to [0.0, 0.0].
         time_utc : datetime, optional
-            UTC timestamp of the simulation epoch.  Used to select the
-            matching ERA5 profile and APEX weather data.
+            UTC timestamp of the simulation epoch.
             Defaults to 2023-09-01 00:00 UTC.
-        geopotential_file_era5 : str, optional
-            Path to an ERA5 geopotential NetCDF file used to build the
-            vertical coordinate of the super-grid.
-        temperature_file_era5 : str, optional
-            Path to an ERA5 temperature NetCDF file used for mean and
-            fluctuation profiles.
-        spec_humidity_file_era5 : str, optional
-            Path to an ERA5 specific-humidity NetCDF file used for mean
-            and fluctuation profiles.
-        apex_datafile : str, optional
-            Path to a CSV file containing APEX weather-station
-            measurements (PWV, temperature, humidity, wind) used to
-            calibrate the simulated profiles.
+        profiles : dict or str
+            Weather profiles, independent of their source (see
+            :mod:`profiles`).  Either a dict of measured profiles
+            supplied by the user, or the name of a supported AFGL
+            reference atmosphere (``'tropical'``,
+            ``'midlatitude_summer'``, ``'midlatitude_winter'``,
+            ``'subarctic_summer'``, ``'subarctic_winter'`` or
+            ``'us_standard'``), which is loaded with
+            :func:`profiles.afgl_profiles`.
+            A dict holds 1-D arrays on a common altitude axis, with keys:
+
+            - ``'z'``                - altitude above sea level (m)
+            - ``'temperature'``      - temperature (K)
+            - ``'pressure'``         - pressure (Pa)
+            - ``'specific_humidity'``- specific humidity (kg kg⁻¹)
+            - ``'temperature_std'``  - optional RMS temperature
+              fluctuation (K)
+        temperature_mean : float, optional
+            Mean temperature at the site (K).  If given, the temperature
+            profile is rescaled to match it at the lowest grid level.
+        temperature_std : float, optional
+            Standard deviation of the temperature at the site (K).  If
+            given, the temperature fluctuation profile is rescaled to
+            match it at the lowest grid level.
+        pwv_mean : float, optional
+            Mean precipitable water vapour at the site (mm).  If given,
+            the specific-humidity profile is rescaled to match it.
+        pwv_std : float, optional
+            Standard deviation of the precipitable water vapour at the
+            site (mm).  If given, generated water-vapour fluctuations
+            are rescaled to match it.
+
+            Site statistics that are not provided are not calibrated
+            against (see :class:`calibration.AtmosphereCalibrator`).
 
         Attributes
         ----------
@@ -86,11 +108,13 @@ class Atmosphere:
         grid_wsp : gutl.GridWorkspace
             Grid workspace providing coordinate axes, wavenumber grids,
             and interpolation helpers.
-        super_grid : super_grid.SuperGrid
-            Vertical super-grid built from ERA5 geopotential data.
+        z : jnp.ndarray
+            Altitude axis of the grid above sea level (m), the same as
+            ``grid_wsp.grid_axis(axis=2, altitude_axis=True)``.  All
+            profiles and the mean-profile dictionaries are defined on it.
         atm_calibrator : calibration.AtmosphereCalibrator
-            Calibrator that normalises ERA5 profiles to match on-site
-            observations.
+            Calibrator that interpolates the input profiles onto ``z``
+            and, when site statistics are provided, recalibrates them.
         component_names : list of str
             Ordered list of registered component names.
         components : dict
@@ -110,20 +134,18 @@ class Atmosphere:
                                                 site_altitude=self.site_altitude
                                                 )
         
-        self.super_grid       = super_grid.SuperGrid(
-                                                geopotential_file=geopotential_file_era5,
-                                                z_max=self.Lbox[2],
-                                                Nz=self.N[2],
-                                                time_utc=self.session_time,
-                                                site_lonlat=self.site_coordinates,
-                                                site_altitude=self.site_altitude
-                                                )
+        self.z                = self.grid_wsp.grid_axis(axis=2, altitude_axis=True)
+        
+        if isinstance(profiles, str):
+            profiles = afgl_profiles(profiles)
         
         self.atm_calibrator   = calibration.AtmosphereCalibrator(
-                                                super_grid=self.super_grid,
-                                                temperature_file=temperature_file_era5,
-                                                sp_humidity_file=spec_humidity_file_era5,
-                                                apexdatafile=apex_datafile,
+                                                z_grid=self.z,
+                                                profiles=profiles,
+                                                temperature_mean=temperature_mean,
+                                                temperature_std=temperature_std,
+                                                pwv_mean=pwv_mean,
+                                                pwv_std=pwv_std,
                                                 )
         
         self.component_names  = []
@@ -200,7 +222,7 @@ class Atmosphere:
         Add a turbulent temperature component to the atmosphere.
 
         The height-dependent RMS amplitude and mean profile are taken
-        from the ERA5-calibrated :attr:`atm_calibrator`:
+        from the calibrated :attr:`atm_calibrator`:
 
         - Fluctuation scaling: ``atm_calibrator.temp_fluctuation_profile``
         - Mean profile:        ``atm_calibrator.temperature_profile``
@@ -220,9 +242,9 @@ class Atmosphere:
             field_name='temperature',
             field_unit='K',
             pspec=power_spec,
-            zscale={'h': self.super_grid.z, 'f':self.atm_calibrator.temp_fluctuation_profile},
+            zscale={'h': self.z, 'f':self.atm_calibrator.temp_fluctuation_profile},
             seed=seed,
-            mean= {'h': self.super_grid.z, 'f': self.atm_calibrator.temperature_profile},
+            mean= {'h': self.z, 'f': self.atm_calibrator.temperature_profile},
         )
         
     def add_watervapor(self,
@@ -232,7 +254,7 @@ class Atmosphere:
         """
         Add a turbulent water-vapor density component to the atmosphere.
 
-        The ERA5 specific-humidity profiles are converted to water-vapor
+        The input specific-humidity profiles are converted to water-vapor
         mass density (kg m⁻³) via the factor
         ``atm_calibrator.q2rho_h2o = p / (R_dry · T_virtual)``:
 
@@ -254,9 +276,9 @@ class Atmosphere:
             field_name='water vapor',
             field_unit='kg / m^3',
             pspec=power_spec,
-            zscale={'h': self.super_grid.z, 'f':self.atm_calibrator.spec_humidity_fluctuation_profile*self.atm_calibrator.q2rho_h2o},
+            zscale={'h': self.z, 'f':self.atm_calibrator.spec_humidity_fluctuation_profile*self.atm_calibrator.q2rho_h2o},
             seed=seed,
-            mean= {'h': self.super_grid.z, 'f': self.atm_calibrator.spec_humidity_profile*self.atm_calibrator.q2rho_h2o},
+            mean= {'h': self.z, 'f': self.atm_calibrator.spec_humidity_profile*self.atm_calibrator.q2rho_h2o},
         )
         
     def add_cloud(self,
@@ -267,7 +289,7 @@ class Atmosphere:
         Add turbulent cloud components (ice and liquid water) to the atmosphere.
         This initializes a standardized base fluctuation field.
         """
-        z_array = self.super_grid.z
+        z_array = self.z
         
         # 1. Add the underlying standardized fluctuation field
         self._add_component(
@@ -338,8 +360,9 @@ class Atmosphere:
         This calls :meth:`box.Box.generate_field_realization` for the
         requested component(s).  If a water-vapor component is
         (re-)generated, :meth:`calibration.AtmosphereCalibrator.calibrate_pwv`
-        is called automatically to rescale the field so that its
-        column-integrated PWV matches the APEX measurement.
+        is called automatically to rescale the field so that the
+        standard deviation of its column-integrated PWV matches
+        ``pwv_std``, if provided.
 
         Parameters
         ----------
@@ -354,9 +377,9 @@ class Atmosphere:
         """
         if component_name in self.component_names:
             self.components[component_name].generate_field_fluctuations(time_step=int(time_step))
-            if component_name == 'water vapor': self.atm_calibrator.calibrate_pwv(self.grid_wsp.grid_axis(axis=2, altitude_axis=True), self.components[component_name])
+            if component_name == 'water vapor': self.atm_calibrator.calibrate_pwv(self.z, self.components[component_name])
         else:
             for component in self.components.values():
                 component.generate_field_fluctuations(time_step=int(time_step))
-                if component.field_name == 'water vapor': self.atm_calibrator.calibrate_pwv(self.grid_wsp.grid_axis(axis=2, altitude_axis=True), component)
+                if component.field_name == 'water vapor': self.atm_calibrator.calibrate_pwv(self.z, component)
                 

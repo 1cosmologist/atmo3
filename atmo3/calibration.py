@@ -1,151 +1,154 @@
+import warnings
+
 import jax.numpy as jnp
-import pandas as pd
 
 from . import constants as const
-from . import super_grid as sg 
 from . import atm_utils as au 
 from . import box
+from .profiles import validate_profiles
 
 class AtmosphereCalibrator:
     """
-    Calibrate ERA5-derived atmospheric profiles against on-site
-    meteorological observations from the APEX weather station.
+    Interpolate standardized atmospheric profiles onto the simulation
+    z-grid and, optionally, recalibrate them to match on-site
+    measurements.
 
-    On construction the calibrator reads ERA5 temperature and specific-
-    humidity profiles, normalises them so that the ground-level
-    temperature and column-integrated precipitable water vapour (PWV)
-    match the mean values recorded by APEX in a one-hour window centred
-    on the simulation epoch, and pre-computes the RMS fluctuation
-    amplitudes used as height-dependent scaling profiles by the
+    On construction the calibrator interpolates the temperature,
+    pressure and specific-humidity profiles (see :mod:`profiles`) onto
+    the z-grid.  For each of the site statistics provided (mean and
+    standard deviation of the temperature and of the column-integrated
+    precipitable water vapour, PWV) the corresponding profile or
+    fluctuation amplitude is rescaled to match it; statistics that are
+    not provided leave the profiles untouched.  The RMS fluctuation
+    amplitudes are used as height-dependent scaling profiles by the
     :class:`box.Box` field generator.
-
-    The APEX weather-data file is expected to be a headerless CSV with
-    columns: ``UT, PWV, Temperature, Humidity, Wind_Dir, Wind_Speed``.
     """
 
     def __init__(self, 
-            super_grid: type[sg.SuperGrid] = None, 
-            temperature_file: str = None, 
-            sp_humidity_file: str = None, 
-            apexdatafile: str = None
+            z_grid: jnp.ndarray = None,
+            profiles: dict = None,
+            temperature_mean: float = None,
+            temperature_std: float = None,
+            pwv_mean: float = None,
+            pwv_std: float = None
     ) -> None :
         """
-        Build the calibrated atmospheric profiles.
+        Build the (optionally recalibrated) atmospheric profiles.
 
         Parameters
         ----------
-        super_grid : sg.SuperGrid
-            Vertical super-grid that provides the pressure levels,
-            altitude axis, and ERA5 interpolation helpers.
-        temperature_file : str, optional
-            Path to an ERA5 temperature NetCDF file.  Used to compute
-            both the mean temperature profile and the RMS temperature-
-            fluctuation profile.
-        sp_humidity_file : str, optional
-            Path to an ERA5 specific-humidity NetCDF file.  Used to
-            compute the mean specific-humidity profile.
-        apexdatafile : str, optional
-            Path to the APEX weather-station CSV file.  Rows within
-            ±30 minutes of ``super_grid.time_utc`` are averaged to
-            obtain reference PWV and temperature values.
+        z_grid : jnp.ndarray
+            Altitude axis of the simulation grid above sea level (m).
+        profiles : dict
+            Standardized profile dictionary (see :mod:`profiles`) with
+            keys ``'z'`` (m), ``'temperature'`` (K), ``'pressure'`` (Pa)
+            and ``'specific_humidity'`` (kg kg⁻¹), plus optionally
+            ``'temperature_std'`` (K), the RMS temperature fluctuation.
+        temperature_mean : float, optional
+            Mean temperature at the site (K).  If given, the
+            temperature profile is rescaled so that its value at the
+            lowest grid level equals it.
+        temperature_std : float, optional
+            Standard deviation of the temperature at the site (K).  If
+            given, the temperature fluctuation profile is rescaled so
+            that its value at the lowest grid level equals it; if
+            ``profiles`` has no ``'temperature_std'`` the fluctuation
+            is this value at all heights.  If neither is available the
+            temperature fluctuation is zero.
+        pwv_mean : float, optional
+            Mean PWV at the site (mm).  If given, the specific-humidity
+            profile is rescaled so that its column-integrated PWV
+            equals it.
+        pwv_std : float, optional
+            Standard deviation of the PWV at the site (mm).  If given,
+            :meth:`calibrate_pwv` rescales water-vapour fluctuation
+            fields to it; otherwise that method does nothing.
 
         Attributes
         ----------
         pressure : jnp.ndarray
-            Pressure levels from ``super_grid`` (Pa).
+            Pressure profile on ``z_grid`` (Pa).
         temperature_profile : jnp.ndarray
-            ERA5 temperature profile normalised to match the APEX
-            ground-level mean temperature (K).
+            Temperature profile on ``z_grid`` (K).
         spec_humidity_profile : jnp.ndarray
-            ERA5 specific-humidity profile normalised so that the
-            column-integrated PWV matches the APEX mean PWV
-            (kg kg⁻¹).
+            Specific-humidity profile on ``z_grid`` (kg kg⁻¹).
         vir_temperature : jnp.ndarray
-            Virtual temperature derived from the calibrated temperature
-            and specific-humidity profiles (K).
+            Virtual temperature derived from the temperature and
+            specific-humidity profiles (K).
         q2rho_h2o : jnp.ndarray
             Conversion factor from specific humidity to water-vapour
             mass density: ``p / (R_dry · T_virtual)`` (kg m⁻³ / (kg kg⁻¹)).
         temp_fluctuation_profile : jnp.ndarray
-            Height-dependent RMS temperature-fluctuation amplitude,
-            derived from the horizontal variance in the ERA5 temperature
-            grid and rescaled to match the APEX temperature standard
-            deviation (K).
+            Height-dependent RMS temperature-fluctuation amplitude (K).
         spec_humidity_fluctuation_profile : jnp.ndarray
             Height-dependent RMS specific-humidity fluctuation amplitude,
-            set to 0.1 % of the calibrated mean specific-humidity
-            profile (kg kg⁻¹).
-        apex_pwv_mean : float
-            Mean PWV from the APEX CSV window (mm).
-        apex_pwv_std : float
-            Standard deviation of PWV from the APEX CSV window (mm).
-        apex_temperature_mean : float
-            Mean temperature from the APEX CSV window (K or °C,
-            as stored in the file).
-        apex_temperature_std : float
-            Standard deviation of temperature from the APEX CSV window.
+            set to 0.1 % of the mean specific-humidity profile
+            (kg kg⁻¹).
+        temperature_mean, temperature_std, pwv_mean, pwv_std : float or None
+            The site statistics as provided.
         """
-        self.pressure = super_grid.pressure
-        self.temperature_profile = super_grid.era5_interp2site(temperature_file)
-        self.spec_humidity_profile = super_grid.era5_interp2site(sp_humidity_file)
+        profiles = validate_profiles(profiles)
+        z_grid = jnp.asarray(z_grid)
 
-        self.vir_temperature = au.virtual_temperature(self.temperature_profile, self.spec_humidity_profile)
-        self.q2rho_h2o = self.pressure / (const.R_dry_air * self.vir_temperature)
+        for name, value, positive in (('temperature_mean', temperature_mean, True),
+                                      ('temperature_std', temperature_std, False),
+                                      ('pwv_mean', pwv_mean, True),
+                                      ('pwv_std', pwv_std, False)):
+            if value is not None and not (value > 0 if positive else value >= 0):
+                raise ValueError(f"{name} must be {'positive' if positive else 'non-negative'}, got {value}.")
 
-        t0 = pd.Timestamp(super_grid.time_utc[0]).replace(tzinfo=None)
-        t_start = t0 - pd.Timedelta(minutes=30)
-        t_end   = t0 + pd.Timedelta(minutes=30)
+        self.temperature_mean = temperature_mean
+        self.temperature_std  = temperature_std
+        self.pwv_mean         = pwv_mean
+        self.pwv_std          = pwv_std
 
-        chunks = []
-        for chunk in pd.read_csv(
-            apexdatafile,
-            header=None,
-            names=['UT', 'PWV', 'Temperature', 'Humidity', 'Wind_Dir', 'Wind_Speed'],
-            parse_dates=['UT'],
-            chunksize=1024
-        ):
-            chunk = chunk[(chunk['UT'] >= t_start) & (chunk['UT'] <= t_end)]
-            if not chunk.empty:
-                chunks.append(chunk)
-                
-        apexdata = pd.concat(chunks) if chunks else pd.DataFrame(
-            columns=['UT', 'PWV', 'Temperature', 'Humidity', 'Wind_Dir', 'Wind_Speed']
+        # Pressure falls roughly exponentially with height, so interpolate its logarithm.
+        self.pressure = jnp.exp(jnp.interp(z_grid, profiles['z'], jnp.log(profiles['pressure']), left='extrapolate', right='extrapolate'))
+        self.temperature_profile = jnp.interp(z_grid, profiles['z'], profiles['temperature'], left='extrapolate', right='extrapolate')
+        self.spec_humidity_profile = jnp.clip(
+            jnp.interp(z_grid, profiles['z'], profiles['specific_humidity'], left='extrapolate', right='extrapolate'),
+            0.0
         )
 
-        apexdata['Temperature'] += 273.15  # APEX is in Celsius
-        self.apex_pwv_mean = apexdata['PWV'].mean()
-        self.apex_pwv_std  = apexdata['PWV'].std()
-        self.apex_temperature_mean = apexdata['Temperature'].mean()
-        self.apex_temperature_std  = apexdata['Temperature'].std()
+        if 'temperature_std' in profiles:
+            self.temp_fluctuation_profile = jnp.interp(z_grid, profiles['z'], profiles['temperature_std'], left='extrapolate', right='extrapolate')
+        elif temperature_std is not None:
+            self.temp_fluctuation_profile = jnp.ones_like(self.temperature_profile)
+        else:
+            warnings.warn("No temperature fluctuation profile or temperature_std provided; the temperature fluctuations are zero.")
+            self.temp_fluctuation_profile = jnp.zeros_like(self.temperature_profile)
 
-        profile_pwv = jnp.trapezoid(self.q2rho_h2o*self.spec_humidity_profile, x=super_grid.z)
+        self._mean_temperature_normalization = 1.0
+        self._temperature_fluctuation_norm = 1.0
+        self._mean_spec_humidity_normalization = 1.0
 
-        self._mean_spec_humidity_normalization = self.apex_pwv_mean / profile_pwv
-        self._mean_temperature_normalization = self.apex_temperature_mean / self.temperature_profile[0]
+        if temperature_mean is not None:
+            self._mean_temperature_normalization = temperature_mean / self.temperature_profile[0]
+            self.temperature_profile = self.temperature_profile * self._mean_temperature_normalization
 
+        if temperature_std is not None:
+            if self.temp_fluctuation_profile[0] <= 0:
+                raise ValueError("Cannot rescale the temperature fluctuations: the profile is zero at the lowest grid level.")
+            self._temperature_fluctuation_norm = temperature_std / self.temp_fluctuation_profile[0]
+            self.temp_fluctuation_profile = self.temp_fluctuation_profile * self._temperature_fluctuation_norm
 
-        temperature_grid = super_grid.property_from_era5(temperature_file)
-        
-        self.temp_fluctuation_profile = jnp.std(temperature_grid, axis=(0, 1))
+        self._update_water_vapor_conversion()
 
-        # print(self.temp_fluctuation_profile)
-        self._temperature_fluctuation_norm = self.apex_temperature_std / self.temp_fluctuation_profile[0]
-        # print(self._temperature_fluctuation_norm)
-        del temperature_grid
+        if pwv_mean is not None:
+            # The virtual temperature, hence the density conversion, depends on q: iterate to convergence.
+            for _ in range(20):
+                factor = pwv_mean / jnp.trapezoid(self.q2rho_h2o * self.spec_humidity_profile, x=z_grid)
+                self._mean_spec_humidity_normalization *= factor
+                self.spec_humidity_profile = self.spec_humidity_profile * factor
+                self._update_water_vapor_conversion()
+                if abs(factor - 1.0) < 1e-12:
+                    break
 
-        self.temperature_profile      *= self._mean_temperature_normalization
-        # self.temp_fluctuation_profile *= self._temperature_fluctuation_norm
+        self.spec_humidity_fluctuation_profile = 1e-3 * jnp.copy(self.spec_humidity_profile)
 
-        self.spec_humidity_profile    *= self._mean_spec_humidity_normalization
-        
+    def _update_water_vapor_conversion(self) -> None:
         self.vir_temperature = au.virtual_temperature(self.temperature_profile, self.spec_humidity_profile)
         self.q2rho_h2o = self.pressure / (const.R_dry_air * self.vir_temperature)
-        
-        self.spec_humidity_fluctuation_profile = 1e-3 * jnp.copy(self.spec_humidity_profile)
-        
-        
-        print(self.apex_pwv_mean, self.apex_pwv_std)
-        
         
     def calibrate_pwv(
         self,
@@ -153,15 +156,16 @@ class AtmosphereCalibrator:
         water_box: type[box.Box] = None
     ) -> None :
         """
-        Rescale a water-vapour fluctuation field to match the APEX PWV
+        Rescale a water-vapour fluctuation field to match the site PWV
         standard deviation.
 
         The column-integrated PWV is computed for each horizontal pixel
         of ``water_box.field`` by integrating along the vertical axis.
         The resulting sky-plane PWV map has a standard deviation
         ``sigma_pwv``; the field is then multiplied by
-        ``apex_pwv_std / sigma_pwv`` so that the simulated PWV
-        fluctuations have the same amplitude as observed by APEX.
+        ``pwv_std / sigma_pwv`` so that the simulated PWV fluctuations
+        have the amplitude measured at the site.  If ``pwv_std`` was not
+        provided, the field is left unchanged.
 
         The normalisation factor is stored as
         ``self._spec_hum_fluctuation_norm`` for later inspection.
@@ -176,10 +180,13 @@ class AtmosphereCalibrator:
             Water-vapour :class:`box.Box` instance whose ``field``
             attribute (shape ``[Nx, Ny, Nz]``) is rescaled in-place.
         """
+        if self.pwv_std is None:
+            return
+
         pwv_plane = jnp.trapezoid(water_box.field, x=z_axis, axis=2)
         sigma_pwv = jnp.std(pwv_plane)
         
-        self._spec_hum_fluctuation_norm = self.apex_pwv_std / sigma_pwv 
+        self._spec_hum_fluctuation_norm = self.pwv_std / sigma_pwv 
         
         water_box.field = water_box.field * self._spec_hum_fluctuation_norm
         

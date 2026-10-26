@@ -11,6 +11,7 @@ __pycache__/
 examples/*.png
 examples/*.dat
 build/
+docs/_build/
 develop-eggs/
 dist/
 downloads/
@@ -183,3 +184,4 @@ cython_debug/
 *.gif
 examples/distributed_3dfft.py
 examples/atmo_fields_UTC0.npz
+._dbindex_/

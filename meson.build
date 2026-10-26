@@ -48,6 +48,7 @@ py_sources = [
     'atmo3/cube.py',
     'atmo3/emission_utils.py',
     'atmo3/emission.py',
+    'atmo3/era5_utils.py',
     'atmo3/grid_utils.py',
     'atmo3/multihost_fft.py',
     'atmo3/obs_utils.py',
@@ -55,9 +56,23 @@ py_sources = [
     'atmo3/parallel_rng.py',
     'atmo3/polarized_emission.py',
     'atmo3/power.py',
-    'atmo3/super_grid.py'
+    'atmo3/profiles.py'
 ]
 
 py3.install_sources(py_sources,
   subdir: 'atmo3',
+)
+
+# AFGL (1986) reference atmospheres used by atmo3/profiles.py
+afgl_tables = [
+    'data/afgl_data/1a.csv',
+    'data/afgl_data/1b.csv',
+    'data/afgl_data/1c.csv',
+    'data/afgl_data/1d.csv',
+    'data/afgl_data/1e.csv',
+    'data/afgl_data/1f.csv',
+]
+
+py3.install_sources(afgl_tables,
+  subdir: 'atmo3/data/afgl_data',
 )
