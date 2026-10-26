@@ -72,7 +72,6 @@ atmo3_data = '/pscratch/sd/s/shamikg/atmo3_data/'
 geopotfile = f'{atmo3_data}era5/2023/geopt.202309.ap1e5.291.0_293.0_-24.0_-22.0_025.nc'
 tempfile   = f'{atmo3_data}era5/2023/ta.202309.ap1e5.291.0_293.0_-24.0_-22.0_025.nc'
 spechfile  = f'{atmo3_data}era5/2023/q.202309.ap1e5.291.0_293.0_-24.0_-22.0_025.nc'
-
 northwindfile = f'{atmo3_data}era5/2023/v.202309.ap1e5.291.0_293.0_-24.0_-22.0_025.nc'      # V-component North wind
 eastwindfile  = f'{atmo3_data}era5/2023/u.202309.ap1e5.291.0_293.0_-24.0_-22.0_025.nc'      # U-component East wind
 
@@ -83,30 +82,35 @@ apexfile = f'{atmo3_data}apex/meteo_apex_2006_2025.csv'
 t0 = time.perf_counter()
 # =============================================================================
 # Initialise the atmosphere object
-# ERA5 profiles are read and interpolated to the site location; profiles are
-# then normalised so that the ground-level temperature and column-integrated
-# PWV match the mean APEX observations recorded within ±30 min of time_utc.
+# The weather profiles (z [m], temperature [K], pressure [Pa], specific
+# humidity [kg/kg]) are read from ERA5 at the site; any source providing the
+# same dictionary (e.g. a3.afgl_profiles('midlatitude_summer')) can be used
+# instead.  Profiles are then interpolated to the grid and normalised so that
+# the ground-level temperature and column-integrated PWV match the mean APEX
+# observations recorded within ±30 min of time_utc.
 # =============================================================================
+era5 = a3.ERA5Handler(geopotfile, time_utc, site_coordinates)
+profiles = era5.profiles(tempfile, spechfile)
+
 atmo_box = a3.Atmosphere(
     nside_grid=nside_grid,
     box_length_in_m=box_length,
     site_altitude=site_altitude,
     site_coordinates=site_coordinates,
     time_utc=time_utc,
-    geopotential_file_era5=geopotfile,
-    temperature_file_era5=tempfile,
-    spec_humidity_file_era5=spechfile,
+    profiles=profiles,
     apex_datafile=apexfile
 )
 
 t1 = time.perf_counter()
 print(f"Atmosphere class init : {t1 - t0:.6f} s")
 
+# ERA5 winds at the site, passed to the Observer as profile dicts.
+# Plain floats (m/s) would instead give a height-independent wind.
+northwind, eastwind = era5.wind_profiles(northwindfile, eastwindfile)
+
 obs = a3.Observer(
     grid_wsp = atmo_box.grid_wsp,
-    super_grid = atmo_box.super_grid,
-    northwind_era5_file = None,
-    eastwind_era5_file = None,
     boresight = jnp.array(boresight),       # in grid coordinates
     passband = passband, 
     fwhm_arcmin = fwhm
@@ -119,9 +123,8 @@ print(f"Observer init LoS compute time : {t1 - t0:.6f} s")
 
 obs_w = a3.Observer(
     grid_wsp = atmo_box.grid_wsp,
-    super_grid = atmo_box.super_grid,
-    northwind_era5_file = northwindfile,
-    eastwind_era5_file = eastwindfile,
+    northwind = northwind,
+    eastwind = eastwind,
     boresight = jnp.array(boresight),       # in grid coordinates
     passband = passband, 
     fwhm_arcmin = fwhm

@@ -2,31 +2,33 @@ import jax.numpy as jnp
 import pandas as pd
 
 from . import constants as const
-from . import super_grid as sg 
 from . import atm_utils as au 
 from . import box
+from .profiles import validate_profiles
 
 class AtmosphereCalibrator:
     """
-    Calibrate ERA5-derived atmospheric profiles against on-site
-    meteorological observations from the APEX weather station.
+    Interpolate standardized atmospheric profiles onto the simulation
+    z-grid and calibrate them against on-site meteorological
+    observations from the APEX weather station.
 
-    On construction the calibrator reads ERA5 temperature and specific-
-    humidity profiles, normalises them so that the ground-level
-    temperature and column-integrated precipitable water vapour (PWV)
-    match the mean values recorded by APEX in a one-hour window centred
-    on the simulation epoch, and pre-computes the RMS fluctuation
-    amplitudes used as height-dependent scaling profiles by the
-    :class:`box.Box` field generator.
+    On construction the calibrator interpolates the temperature,
+    pressure and specific-humidity profiles (see :mod:`profiles`) onto
+    the z-grid, normalises them so that the ground-level temperature and
+    column-integrated precipitable water vapour (PWV) match the mean
+    values recorded by APEX in a one-hour window centred on the
+    simulation epoch, and pre-computes the RMS fluctuation amplitudes
+    used as height-dependent scaling profiles by the :class:`box.Box`
+    field generator.
 
     The APEX weather-data file is expected to be a headerless CSV with
     columns: ``UT, PWV, Temperature, Humidity, Wind_Dir, Wind_Speed``.
     """
 
     def __init__(self, 
-            super_grid: type[sg.SuperGrid] = None, 
-            temperature_file: str = None, 
-            sp_humidity_file: str = None, 
+            z_grid: jnp.ndarray = None,
+            profiles: dict = None,
+            time_utc = None,
             apexdatafile: str = None
     ) -> None :
         """
@@ -34,30 +36,32 @@ class AtmosphereCalibrator:
 
         Parameters
         ----------
-        super_grid : sg.SuperGrid
-            Vertical super-grid that provides the pressure levels,
-            altitude axis, and ERA5 interpolation helpers.
-        temperature_file : str, optional
-            Path to an ERA5 temperature NetCDF file.  Used to compute
-            both the mean temperature profile and the RMS temperature-
-            fluctuation profile.
-        sp_humidity_file : str, optional
-            Path to an ERA5 specific-humidity NetCDF file.  Used to
-            compute the mean specific-humidity profile.
+        z_grid : jnp.ndarray
+            Altitude axis of the simulation grid above sea level (m).
+        profiles : dict
+            Standardized profile dictionary (see :mod:`profiles`) with
+            keys ``'z'`` (m), ``'temperature'`` (K), ``'pressure'`` (Pa)
+            and ``'specific_humidity'`` (kg kg⁻¹), plus optionally
+            ``'temperature_std'`` (K), the RMS temperature fluctuation.
+            If ``'temperature_std'`` is absent, a height-independent
+            fluctuation equal to the APEX temperature standard
+            deviation is used.
+        time_utc : datetime
+            UTC timestamp of the simulation epoch.
         apexdatafile : str, optional
             Path to the APEX weather-station CSV file.  Rows within
-            ±30 minutes of ``super_grid.time_utc`` are averaged to
-            obtain reference PWV and temperature values.
+            ±30 minutes of ``time_utc`` are averaged to obtain
+            reference PWV and temperature values.
 
         Attributes
         ----------
         pressure : jnp.ndarray
-            Pressure levels from ``super_grid`` (Pa).
+            Pressure profile on ``z_grid`` (Pa).
         temperature_profile : jnp.ndarray
-            ERA5 temperature profile normalised to match the APEX
+            Temperature profile normalised to match the APEX
             ground-level mean temperature (K).
         spec_humidity_profile : jnp.ndarray
-            ERA5 specific-humidity profile normalised so that the
+            Specific-humidity profile normalised so that the
             column-integrated PWV matches the APEX mean PWV
             (kg kg⁻¹).
         vir_temperature : jnp.ndarray
@@ -67,10 +71,8 @@ class AtmosphereCalibrator:
             Conversion factor from specific humidity to water-vapour
             mass density: ``p / (R_dry · T_virtual)`` (kg m⁻³ / (kg kg⁻¹)).
         temp_fluctuation_profile : jnp.ndarray
-            Height-dependent RMS temperature-fluctuation amplitude,
-            derived from the horizontal variance in the ERA5 temperature
-            grid and rescaled to match the APEX temperature standard
-            deviation (K).
+            Height-dependent RMS temperature-fluctuation amplitude (K),
+            from ``profiles['temperature_std']`` if provided.
         spec_humidity_fluctuation_profile : jnp.ndarray
             Height-dependent RMS specific-humidity fluctuation amplitude,
             set to 0.1 % of the calibrated mean specific-humidity
@@ -85,14 +87,21 @@ class AtmosphereCalibrator:
         apex_temperature_std : float
             Standard deviation of temperature from the APEX CSV window.
         """
-        self.pressure = super_grid.pressure
-        self.temperature_profile = super_grid.era5_interp2site(temperature_file)
-        self.spec_humidity_profile = super_grid.era5_interp2site(sp_humidity_file)
+        profiles = validate_profiles(profiles)
+        z_grid = jnp.asarray(z_grid)
+
+        # Pressure falls roughly exponentially with height, so interpolate its logarithm.
+        self.pressure = jnp.exp(jnp.interp(z_grid, profiles['z'], jnp.log(profiles['pressure']), left='extrapolate', right='extrapolate'))
+        self.temperature_profile = jnp.interp(z_grid, profiles['z'], profiles['temperature'], left='extrapolate', right='extrapolate')
+        self.spec_humidity_profile = jnp.clip(
+            jnp.interp(z_grid, profiles['z'], profiles['specific_humidity'], left='extrapolate', right='extrapolate'),
+            0.0
+        )
 
         self.vir_temperature = au.virtual_temperature(self.temperature_profile, self.spec_humidity_profile)
         self.q2rho_h2o = self.pressure / (const.R_dry_air * self.vir_temperature)
 
-        t0 = pd.Timestamp(super_grid.time_utc[0]).replace(tzinfo=None)
+        t0 = pd.Timestamp(time_utc).replace(tzinfo=None)
         t_start = t0 - pd.Timedelta(minutes=30)
         t_end   = t0 + pd.Timedelta(minutes=30)
 
@@ -118,20 +127,17 @@ class AtmosphereCalibrator:
         self.apex_temperature_mean = apexdata['Temperature'].mean()
         self.apex_temperature_std  = apexdata['Temperature'].std()
 
-        profile_pwv = jnp.trapezoid(self.q2rho_h2o*self.spec_humidity_profile, x=super_grid.z)
+        profile_pwv = jnp.trapezoid(self.q2rho_h2o*self.spec_humidity_profile, x=z_grid)
 
         self._mean_spec_humidity_normalization = self.apex_pwv_mean / profile_pwv
         self._mean_temperature_normalization = self.apex_temperature_mean / self.temperature_profile[0]
 
+        if 'temperature_std' in profiles:
+            self.temp_fluctuation_profile = jnp.interp(z_grid, profiles['z'], profiles['temperature_std'], left='extrapolate', right='extrapolate')
+        else:
+            self.temp_fluctuation_profile = jnp.full_like(z_grid, self.apex_temperature_std, dtype=self.temperature_profile.dtype)
 
-        temperature_grid = super_grid.property_from_era5(temperature_file)
-        
-        self.temp_fluctuation_profile = jnp.std(temperature_grid, axis=(0, 1))
-
-        # print(self.temp_fluctuation_profile)
         self._temperature_fluctuation_norm = self.apex_temperature_std / self.temp_fluctuation_profile[0]
-        # print(self._temperature_fluctuation_norm)
-        del temperature_grid
 
         self.temperature_profile      *= self._mean_temperature_normalization
         # self.temp_fluctuation_profile *= self._temperature_fluctuation_norm

@@ -4,29 +4,48 @@ import jax.scipy as jsp
 import numpy as np
 from functools import partial
 from .grid_utils import GridWorkspace
-from .super_grid import SuperGrid
 from . import obs_utils
+from .profiles import wind_on_grid
 
 class Observer:
     
     def __init__(
         self,
         grid_wsp: type[GridWorkspace] = None,
-        super_grid: type[SuperGrid] = None,
-        northwind_era5_file: str = None,
-        eastwind_era5_file: str = None,
+        northwind: float | dict = None,
+        eastwind: float | dict = None,
         boresight: jnp.ndarray = None,       # in grid coordinates
         passband: dict = None, 
         fwhm_arcmin: float = None
     ):
+        """
+        Parameters
+        ----------
+        grid_wsp : GridWorkspace
+            Grid workspace of the simulated atmosphere.
+        northwind, eastwind : float or dict, optional
+            North and east wind components (m/s).  A float is a wind
+            independent of height; a dict is a height-dependent profile
+            ``{'z': altitude above sea level (m), 'northwind' or
+            'eastwind': wind (m/s)}``, interpolated onto the grid
+            altitude axis.  If only one component is given the other is
+            taken to be zero; if both are ``None`` no wind is applied.
+        boresight : jnp.ndarray
+            Boresight position in grid coordinates (m).
+        passband : dict
+            Passband with the frequencies and response.
+        fwhm_arcmin : float
+            Beam FWHM in arcmin.
+        """
         self.grid_wsp = grid_wsp
-        self.super_grid = super_grid
+        
+        altitude_axis = self.grid_wsp.grid_axis(axis=2, altitude_axis=True)
         
         self.north_wind = None; self.east_wind = None
         
-        if (not northwind_era5_file == None) and (not eastwind_era5_file == None):
-            self.north_wind = self.super_grid.era5_interp2site(northwind_era5_file)
-            self.east_wind  = self.super_grid.era5_interp2site(eastwind_era5_file)
+        if northwind is not None or eastwind is not None:
+            self.north_wind = wind_on_grid(northwind, altitude_axis, 'northwind')
+            self.east_wind  = wind_on_grid(eastwind,  altitude_axis, 'eastwind')
             
         
         if not isinstance(boresight, jnp.ndarray):

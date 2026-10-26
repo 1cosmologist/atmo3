@@ -15,6 +15,11 @@ temperature_lapse_rate = 0.0065     # Temperature lapse rate in K/m
 
 earth_radius = 6374.888 * con.kilo # m
 
+# Unit conversions
+km_to_m   = con.kilo              # km -> m
+mbar_to_Pa = con.milli * con.bar  # mb (= hPa) -> Pa
+ppmv      = con.micro             # parts per million by volume -> mole fraction
+
 c = con.c
 k_B = con.k
 h = con.h 
