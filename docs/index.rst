@@ -3,8 +3,8 @@
    :width: 180px
    :align: center
 
-atmo3
-=====
+atmo\ :superscript:`3`
+=====================
 
 **atmo3** (Atmo\ *sphere* cube) simulates three-dimensional atmospheric
 fields (temperature and water vapour, with hooks for clouds and ice) above an
