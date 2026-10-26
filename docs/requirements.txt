@@ -1,0 +1,10 @@
+sphinx
+shibuya
+sphinx-copybutton
+sphinx-design
+
+# Needed to import atmo3 for autodoc (the package itself is added to sys.path in conf.py)
+numpy
+scipy
+xarray
+jax

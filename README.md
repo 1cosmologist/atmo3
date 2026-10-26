@@ -36,5 +36,14 @@ are not given are not calibrated:
 atmo = a3.Atmosphere(profiles='midlatitude_summer', temperature_mean=272.2, pwv_mean=1.15, pwv_std=0.03, ...)
 ```
 
+### Documentation
+The documentation is built with Sphinx and the [Shibuya](https://shibuya.lepture.com/) theme (configured for Read the Docs in `.readthedocs.yaml`). To build it locally:
+
+```bash
+pip install -r docs/requirements.txt
+sphinx-build -b html docs docs/_build/html
+```
+
+
 ### Testing
 `python ./examples/test_cube.py`
