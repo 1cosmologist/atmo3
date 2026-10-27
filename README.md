@@ -16,7 +16,8 @@ Atmo(sphere) cube - a simulation cube for atmospheric emissions in the microwave
 ### Usage
 The `Atmosphere` is agnostic of the weather-data source: `profiles` is either a
 dictionary of measured 1-D profiles (`z` [m], `temperature` [K], `pressure` [Pa],
-`specific_humidity` [kg/kg], optional `temperature_std` [K]), or the name of an
+`specific_humidity` [kg/kg], optional `temperature_std` [K] and
+`specific_humidity_std` [kg/kg]), or the name of an
 AFGL (1986) reference atmosphere (`'tropical'`, `'midlatitude_summer'`,
 `'midlatitude_winter'`, `'subarctic_summer'`, `'subarctic_winter'`,
 `'us_standard'`) from `data/afgl_data`:

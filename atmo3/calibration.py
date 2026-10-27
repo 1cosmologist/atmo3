@@ -1,5 +1,3 @@
-import warnings
-
 import jax.numpy as jnp
 
 from . import constants as const
@@ -43,7 +41,9 @@ class AtmosphereCalibrator:
             Standardized profile dictionary (see :mod:`profiles`) with
             keys ``'z'`` (m), ``'temperature'`` (K), ``'pressure'`` (Pa)
             and ``'specific_humidity'`` (kg kg⁻¹), plus optionally
-            ``'temperature_std'`` (K), the RMS temperature fluctuation.
+            ``'temperature_std'`` (K), the RMS temperature fluctuation,
+            and ``'specific_humidity_std'`` (kg kg⁻¹), the RMS
+            specific-humidity fluctuation.
         temperature_mean : float, optional
             Mean temperature at the site (K).  If given, the
             temperature profile is rescaled so that its value at the
@@ -53,8 +53,8 @@ class AtmosphereCalibrator:
             given, the temperature fluctuation profile is rescaled so
             that its value at the lowest grid level equals it; if
             ``profiles`` has no ``'temperature_std'`` the fluctuation
-            is this value at all heights.  If neither is available the
-            temperature fluctuation is zero.
+            is this value at all heights.  Without either, the default
+            is 0.1 K at all heights.
         pwv_mean : float, optional
             Mean PWV at the site (mm).  If given, the specific-humidity
             profile is rescaled so that its column-integrated PWV
@@ -81,9 +81,8 @@ class AtmosphereCalibrator:
         temp_fluctuation_profile : jnp.ndarray
             Height-dependent RMS temperature-fluctuation amplitude (K).
         spec_humidity_fluctuation_profile : jnp.ndarray
-            Height-dependent RMS specific-humidity fluctuation amplitude,
-            set to 0.1 % of the mean specific-humidity profile
-            (kg kg⁻¹).
+            Height-dependent RMS specific-humidity fluctuation amplitude
+            (kg kg⁻¹). Defaults to 0.1 % of the calibrated mean profile.
         temperature_mean, temperature_std, pwv_mean, pwv_std : float or None
             The site statistics as provided.
         """
@@ -112,11 +111,8 @@ class AtmosphereCalibrator:
 
         if 'temperature_std' in profiles:
             self.temp_fluctuation_profile = jnp.interp(z_grid, profiles['z'], profiles['temperature_std'], left='extrapolate', right='extrapolate')
-        elif temperature_std is not None:
-            self.temp_fluctuation_profile = jnp.ones_like(self.temperature_profile)
         else:
-            warnings.warn("No temperature fluctuation profile or temperature_std provided; the temperature fluctuations are zero.")
-            self.temp_fluctuation_profile = jnp.zeros_like(self.temperature_profile)
+            self.temp_fluctuation_profile = 0.1 * jnp.ones_like(self.temperature_profile)
 
         self._mean_temperature_normalization = 1.0
         self._temperature_fluctuation_norm = 1.0
@@ -144,7 +140,10 @@ class AtmosphereCalibrator:
                 if abs(factor - 1.0) < 1e-12:
                     break
 
-        self.spec_humidity_fluctuation_profile = 1e-3 * jnp.copy(self.spec_humidity_profile)
+        if 'specific_humidity_std' in profiles:
+            self.spec_humidity_fluctuation_profile = jnp.interp(z_grid, profiles['z'], profiles['specific_humidity_std'], left='extrapolate', right='extrapolate')
+        else:
+            self.spec_humidity_fluctuation_profile = 1e-3 * self.spec_humidity_profile
 
     def _update_water_vapor_conversion(self) -> None:
         self.vir_temperature = au.virtual_temperature(self.temperature_profile, self.spec_humidity_profile)
@@ -189,9 +188,3 @@ class AtmosphereCalibrator:
         self._spec_hum_fluctuation_norm = self.pwv_std / sigma_pwv 
         
         water_box.field = water_box.field * self._spec_hum_fluctuation_norm
-        
-        
-
-        
-        
-        

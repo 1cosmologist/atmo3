@@ -22,6 +22,91 @@ class Atmosphere:
     :class:`box.Box` instance whose fluctuations are drawn from a
     user-supplied power spectrum and rescaled by a height-dependent
     profile derived from the input profiles.
+
+    Parameters
+    ----------
+    nside_grid : list of int, optional
+        Number of grid cells along each axis [Nx, Ny, Nz].
+        Defaults to [256, 256, 128].
+    box_length_in_m : list of float, optional
+        Physical size of the simulation box in metres along each
+        axis [Lx, Ly, Lz].  Defaults to [20000.0, 20000.0, 10000.0].
+    site_altitude : float, optional
+        Altitude of the observing site above sea level in metres.
+        Defaults to 0.0.
+    site_coordinates : list of float, optional
+        Geographic coordinates of the site as [longitude, latitude]
+        in degrees. Defaults to [0.0, 0.0].
+    time_utc : datetime, optional
+        UTC timestamp of the simulation epoch.
+        Defaults to 2023-09-01 00:00 UTC.
+    profiles : dict or str
+        Weather profiles, independent of their source (see
+        :mod:`profiles`).  Either a dict of measured profiles
+        supplied by the user, or the name of a supported AFGL
+        reference atmosphere (``'tropical'``,
+        ``'midlatitude_summer'``, ``'midlatitude_winter'``,
+        ``'subarctic_summer'``, ``'subarctic_winter'`` or
+        ``'us_standard'``), which is loaded with
+        :func:`profiles.afgl_profiles`.
+        A dict holds 1-D arrays on a common altitude axis, with keys:
+
+        - ``'z'``                - altitude above sea level (m)
+        - ``'temperature'``      - temperature (K)
+        - ``'pressure'``         - pressure (Pa)
+        - ``'specific_humidity'``- specific humidity (kg kg⁻¹)
+        - ``'temperature_std'``  - optional RMS temperature
+          fluctuation (K)
+        - ``'specific_humidity_std'`` - optional RMS specific-humidity
+          fluctuation (kg kg⁻¹)
+    temperature_mean : float, optional
+        Mean temperature at the site (K).  If given, the temperature
+        profile is rescaled to match it at the lowest grid level.
+    temperature_std : float, optional
+        Standard deviation of the temperature at the site (K).  If
+        given, the temperature fluctuation profile is rescaled to
+        match it at the lowest grid level.
+    pwv_mean : float, optional
+        Mean precipitable water vapour at the site (mm).  If given,
+        the specific-humidity profile is rescaled to match it.
+    pwv_std : float, optional
+        Standard deviation of the precipitable water vapour at the
+        site (mm).  If given, generated water-vapour fluctuations
+        are rescaled to match it.
+
+        Site statistics that are not provided are not calibrated
+        against (see :class:`calibration.AtmosphereCalibrator`).
+
+    Attributes
+    ----------
+    N : jnp.ndarray
+        Grid dimensions [Nx, Ny, Nz].
+    Lbox : jnp.ndarray
+        Box dimensions in metres [Lx, Ly, Lz].
+    site_altitude : float
+        Site altitude in metres.
+    session_time : tuple
+        UTC timestamp of the simulation (stored as a one-element
+        tuple due to trailing comma assignment).
+    site_coordinates : jnp.ndarray
+        Site [longitude, latitude] in degrees.
+    grid_wsp : gutl.GridWorkspace
+        Grid workspace providing coordinate axes, wavenumber grids,
+        and interpolation helpers.
+    z : jnp.ndarray
+        Altitude axis of the grid above sea level (m), the same as
+        ``grid_wsp.grid_axis(axis=2, altitude_axis=True)``.  All
+        profiles and the mean-profile dictionaries are defined on it.
+    atm_calibrator : calibration.AtmosphereCalibrator
+        Calibrator that interpolates the input profiles onto ``z``
+        and, when site statistics are provided, recalibrates them.
+    component_names : list of str
+        Ordered list of registered component names.
+    components : dict
+        Mapping from component name to its :class:`box.Box` instance.
+    component_mean : dict
+        Mapping from component name to its mean-profile dictionary
+        ``{'h': heights, 'f': mean_values}``.
     """
 
     def __init__(self, 
@@ -36,93 +121,6 @@ class Atmosphere:
                  pwv_mean: float = None,
                  pwv_std: float = None
         ) -> None:
-        
-        """
-        Initialize the Atmosphere simulation box.
-
-        Parameters
-        ----------
-        nside_grid : list of int, optional
-            Number of grid cells along each axis [Nx, Ny, Nz].
-            Defaults to [256, 256, 128].
-        box_length_in_m : list of float, optional
-            Physical size of the simulation box in metres along each
-            axis [Lx, Ly, Lz].  Defaults to [20000.0, 20000.0, 10000.0].
-        site_altitude : float, optional
-            Altitude of the observing site above sea level in metres.
-            Defaults to 0.0.
-        site_coordinates : list of float, optional
-            Geographic coordinates of the site as [longitude, latitude]
-            in degrees. Defaults to [0.0, 0.0].
-        time_utc : datetime, optional
-            UTC timestamp of the simulation epoch.
-            Defaults to 2023-09-01 00:00 UTC.
-        profiles : dict or str
-            Weather profiles, independent of their source (see
-            :mod:`profiles`).  Either a dict of measured profiles
-            supplied by the user, or the name of a supported AFGL
-            reference atmosphere (``'tropical'``,
-            ``'midlatitude_summer'``, ``'midlatitude_winter'``,
-            ``'subarctic_summer'``, ``'subarctic_winter'`` or
-            ``'us_standard'``), which is loaded with
-            :func:`profiles.afgl_profiles`.
-            A dict holds 1-D arrays on a common altitude axis, with keys:
-
-            - ``'z'``                - altitude above sea level (m)
-            - ``'temperature'``      - temperature (K)
-            - ``'pressure'``         - pressure (Pa)
-            - ``'specific_humidity'``- specific humidity (kg kg⁻¹)
-            - ``'temperature_std'``  - optional RMS temperature
-              fluctuation (K)
-        temperature_mean : float, optional
-            Mean temperature at the site (K).  If given, the temperature
-            profile is rescaled to match it at the lowest grid level.
-        temperature_std : float, optional
-            Standard deviation of the temperature at the site (K).  If
-            given, the temperature fluctuation profile is rescaled to
-            match it at the lowest grid level.
-        pwv_mean : float, optional
-            Mean precipitable water vapour at the site (mm).  If given,
-            the specific-humidity profile is rescaled to match it.
-        pwv_std : float, optional
-            Standard deviation of the precipitable water vapour at the
-            site (mm).  If given, generated water-vapour fluctuations
-            are rescaled to match it.
-
-            Site statistics that are not provided are not calibrated
-            against (see :class:`calibration.AtmosphereCalibrator`).
-
-        Attributes
-        ----------
-        N : jnp.ndarray
-            Grid dimensions [Nx, Ny, Nz].
-        Lbox : jnp.ndarray
-            Box dimensions in metres [Lx, Ly, Lz].
-        site_altitude : float
-            Site altitude in metres.
-        session_time : tuple
-            UTC timestamp of the simulation (stored as a one-element
-            tuple due to trailing comma assignment).
-        site_coordinates : jnp.ndarray
-            Site [longitude, latitude] in degrees.
-        grid_wsp : gutl.GridWorkspace
-            Grid workspace providing coordinate axes, wavenumber grids,
-            and interpolation helpers.
-        z : jnp.ndarray
-            Altitude axis of the grid above sea level (m), the same as
-            ``grid_wsp.grid_axis(axis=2, altitude_axis=True)``.  All
-            profiles and the mean-profile dictionaries are defined on it.
-        atm_calibrator : calibration.AtmosphereCalibrator
-            Calibrator that interpolates the input profiles onto ``z``
-            and, when site statistics are provided, recalibrates them.
-        component_names : list of str
-            Ordered list of registered component names.
-        components : dict
-            Mapping from component name to its :class:`box.Box` instance.
-        component_mean : dict
-            Mapping from component name to its mean-profile dictionary
-            ``{'h': heights, 'f': mean_values}``.
-        """
         self.N                = jnp.array(nside_grid)
         self.Lbox             = jnp.array(box_length_in_m)
         self.site_altitude    = site_altitude
@@ -382,4 +380,3 @@ class Atmosphere:
             for component in self.components.values():
                 component.generate_field_fluctuations(time_step=int(time_step))
                 if component.field_name == 'water vapor': self.atm_calibrator.calibrate_pwv(self.z, component)
-                

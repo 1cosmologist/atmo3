@@ -5,15 +5,16 @@ The atmosphere is agnostic of where its weather data come from; it only
 needs a *profile dictionary* with the following 1-D arrays, all defined on
 the same altitude axis ``'z'``:
 
-==========================  ============  ================================
-Key                         Unit          Description
-==========================  ============  ================================
-``'z'``                     m             Altitude above sea level, strictly increasing
-``'temperature'``           K             Air temperature
-``'pressure'``              Pa            Total air pressure
-``'specific_humidity'``     kg kg⁻¹       Water-vapour mass fraction of moist air
-``'temperature_std'``       K             *(optional)* RMS temperature fluctuation
-==========================  ============  ================================
+===========================  ============  ================================
+Key                          Unit          Description
+===========================  ============  ================================
+``'z'``                      m             Altitude above sea level, strictly increasing
+``'temperature'``            K             Air temperature
+``'pressure'``               Pa            Total air pressure
+``'specific_humidity'``      kg kg⁻¹       Water-vapour mass fraction of moist air
+``'temperature_std'``        K             *(optional)* RMS temperature fluctuation
+``'specific_humidity_std'``  kg kg⁻¹       *(optional)* RMS specific-humidity fluctuation
+===========================  ============  ================================
 
 This module provides profiles built from the AFGL (1986) reference
 atmospheres (``data/afgl_data``) and the validation helper that
@@ -29,7 +30,7 @@ from . import atm_utils as au
 from . import constants as const
 
 REQUIRED_PROFILE_KEYS = ('z', 'temperature', 'pressure', 'specific_humidity')
-OPTIONAL_PROFILE_KEYS = ('temperature_std',)
+OPTIONAL_PROFILE_KEYS = ('temperature_std', 'specific_humidity_std')
 
 # AFGL (1986) tables 1a-f: name -> table file stem.
 AFGL_MODELS = {
