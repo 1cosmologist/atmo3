@@ -131,21 +131,8 @@ class GridWorkspace:
         N_i   = N_tup[0] if len(N_tup) == 1 else N_tup[axis]
         return self._jit_grid_axis(gs[axis], jnp.asarray(self.site_altitude), N_i, altitude_axis)
 
-    @staticmethod
-    @partial(jax.jit, static_argnames=('N', 'rshape'))
-    def _jit_interp2grid(grid_spacing, site_altitude, x_1d, f_1d, N, rshape):
-        x  = GridWorkspace._jit_grid_axis(grid_spacing[0], site_altitude, N[0])
-        y  = GridWorkspace._jit_grid_axis(grid_spacing[1], site_altitude, N[1])
-        z  = GridWorkspace._jit_grid_axis(grid_spacing[2], site_altitude, N[2], altitude_axis=True)
-        _xx, _yy, zz = jnp.meshgrid(x, y, z, indexing='ij')
-        interp_fcn = jnp.interp(zz.ravel(), x_1d, f_1d, left='extrapolate', right='extrapolate')
-        return jnp.reshape(interp_fcn, rshape)
-
     def interp2grid(self, x_1d, f_1d):
-        N      = tuple(int(x) for x in jnp.atleast_1d(self.N).tolist())
-        N      = N * 3 if len(N) == 1 else N
-        gs     = jnp.broadcast_to(jnp.asarray(self.grid_spacing), (3,))
-        rshape = tuple(int(x) for x in self.rshape)
-        return self._jit_interp2grid(gs, jnp.asarray(self.site_altitude), x_1d, f_1d, N, rshape)
+        z = self.grid_axis(axis=2, altitude_axis=True)
+        return jnp.interp(z, x_1d, f_1d, left='extrapolate', right='extrapolate')
     
 

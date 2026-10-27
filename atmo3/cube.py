@@ -112,12 +112,12 @@ class Cube:
         
         if self.rescale is None: return
         rescale_interp = self.grid_wsp.interp2grid(self.rescale['h'], self.rescale['f']) / jnp.std(self.field)
-        self.field = self.field * rescale_interp
+        self.field = self.field * rescale_interp[None, None, :]
         
     def _add_mean(self):
         if self.mean is None: return
         mean_interp = self.grid_wsp.interp2grid(self.mean['h'], self.mean['f'])
-        self.field = self.field + mean_interp
+        self.field = self.field + mean_interp[None, None, :]
 
     def generate_field_realization(self, time_step=0):
         """
