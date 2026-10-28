@@ -1,14 +1,19 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,
-wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;1,100;1,200;1,300;1,400;1,500;1,600;1,700
-&family=Nunito+Sans:ital,opsz,wght@0,6..12,200..1000;1,6..12,200..1000&family=STIX+Two+Text:
-ital,wght@0,400..700;1,400..700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;1,100;1,200;1,300;1,400;1,500;1,600;1,700&amp;family=Nunito+Sans:ital,opsz,wght@0,6..12,200..1000;1,6..12,200..1000&amp;family=STIX+Two+Text:ital,wght@0,400..700;1,400..700&amp;display=swap" rel="stylesheet">
 
 <style>
-:root {
-  --sy-f-heading: 'STIX Two Text', var(--sy-f-sys), sans-serif;
-  --sy-f-text: 'Nunito Sans', var(--sy-f-sys), sans-serif;
-  --sy-f-mono: 'IBM Plex Mono', var(--sy-f-sys), sans-serif;
+body {
+  font-family: 'Nunito Sans', system-ui, sans-serif;
+}
+.lumina-article :is(h1, h2, h3, h4, h5, h6) {
+  font-family: 'STIX Two Text', Georgia, serif;
+}
+.lumina-article code,
+div.highlight pre,
+pre.highlight,
+.linenodiv pre,
+.code-block-caption {
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
 }
 </style>

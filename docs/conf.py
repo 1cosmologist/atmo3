@@ -46,17 +46,16 @@ intersphinx_mapping = {
     'xarray': ('https://docs.xarray.dev/en/stable/', None),
 }
 
-html_theme = 'shibuya'
+html_theme = 'lumina'
 html_static_path = ['_static']
 html_logo = '_static/atmo3-logo.png'     # atmo3.png cropped to the cube
 html_favicon = '_static/favicon.png'
 html_title = 'atmo3'
 html_theme_options = {
-    # "page_layout": "compact",
-    "color_mode": "dark",
-    'github_url': 'https://github.com/1cosmologist/atmo3',
-    'accent_color': 'violet',
-    'globaltoc_expand_depth': 1,
+    'dark_mode_default': 'dark',
+    'accent_color': '#8b5cf6',
+    'source_repository': 'https://github.com/1cosmologist/atmo3',
+    'social_links': [{'icon': 'github', 'url': 'https://github.com/1cosmologist/atmo3'}],
 }
 
 templates_path = ["_templates"]

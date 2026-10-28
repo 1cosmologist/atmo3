@@ -38,7 +38,7 @@ atmo = a3.Atmosphere(profiles='midlatitude_summer', temperature_mean=272.2, pwv_
 ```
 
 ### Documentation
-The documentation is built with Sphinx and the [Shibuya](https://shibuya.lepture.com/) theme (configured for Read the Docs in `.readthedocs.yaml`). To build it locally:
+The documentation is built with Sphinx and the [Lumina](https://r4sky0.github.io/sphinx-lumina-theme/) theme (configured for Read the Docs in `.readthedocs.yaml`). To build it locally:
 
 ```bash
 pip install -r docs/requirements.txt

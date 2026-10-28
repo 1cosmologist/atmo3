@@ -185,3 +185,5 @@ cython_debug/
 examples/distributed_3dfft.py
 examples/atmo_fields_UTC0.npz
 ._dbindex_/
+references/
+examples/old/

@@ -1,5 +1,5 @@
 sphinx
-shibuya
+sphinx-lumina-theme>=2.13,<3
 sphinx-copybutton
 sphinx-design
 
