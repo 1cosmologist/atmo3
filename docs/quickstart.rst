@@ -58,15 +58,9 @@ injection scale of 500 m is used here.
 
 The fluctuations are stored in ``atmo.components[name].field`` (shape
 ``[Nx, Ny, Nz]``) and the mean profiles in ``atmo.component_mean[name]['f']``.
-Both live on the altitude axis ``atmo.z`` (see :doc:`guide/grid`). The total
-field is their sum:
-
-.. code-block:: python
-
-   water_vapor = (atmo.components['water vapor'].field
-                  + atmo.component_mean['water vapor']['f'].reshape(1, 1, -1))   # kg m^-3
-   temperature = (atmo.components['temperature'].field
-                  + atmo.component_mean['temperature']['f'].reshape(1, 1, -1))   # K
+The profiles live on the altitude axis ``atmo.z`` (see :doc:`guide/grid`).
+The observer adds each mean profile after sampling the fluctuation field, so
+there is no need to construct a full 3D total field.
 
 3. Scan through the cube
 ------------------------
@@ -90,8 +84,8 @@ does not depend on height, or profile dictionaries (see :doc:`guide/observing`).
    elevation = [45.] * 5                    # degrees
    obs.compute_los_for_scan(times, azimuth, elevation)
 
-   water_vapor_los = obs.scan_component(water_vapor)   # shape (n_samples, n_los)
-   temperature_los = obs.scan_component(temperature)
+   water_vapor_los = obs.scan_atmosphere(atmo, 'water vapor')  # kg m^-3; shape (n_samples, n_los)
+   temperature_los = obs.scan_atmosphere(atmo, 'temperature')  # K
 
 ``obs.los_obj`` holds, for every sample and point along the line of sight,
 ``[x, y, altitude, path length, inside-box mask]``.
@@ -109,10 +103,14 @@ does not depend on height, or profile dictionaries (see :doc:`guide/observing`).
    intensity = a3.get_emission(temperature_los, pressure_los, water_vapor_los, ds, freqs_GHz)
    brightness_temperature = a3.intensitySI_to_Tb(intensity[:, :, None], freqs_GHz[None, None, :])[:, :, 0]
 
+For the observer's passband, ``obs.observe_atmosphere(atmo)`` performs these
+steps and returns one band-weighted brightness temperature (K_RJ) per sample.
+The passband response ``g(nu)`` contains discrete weights that sum to one.
+
 .. warning::
 
    Points of a line of sight that leave the box horizontally are filled with
-   zeros by :meth:`~atmo3.observation.Observer.scan_component`, which makes the
+   zeros by :meth:`~atmo3.observation.Observer.scan_atmosphere`, which makes the
    emission undefined. Choose a box and a boresight so that the whole scan,
    including the wind drift, stays inside it. At 45° elevation the horizontal
    extent of the path equals the box height.

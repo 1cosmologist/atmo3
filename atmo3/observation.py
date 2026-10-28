@@ -3,9 +3,13 @@ import jax.numpy as jnp
 import jax.scipy as jsp
 import numpy as np
 from functools import partial
+
 from .grid_utils import GridWorkspace
+from .atmosphere import Atmosphere
 from . import obs_utils
 from .profiles import wind_on_grid
+from .emission import get_emission
+from .emission_utils import intensitySI_to_Tb
 
 class Observer:
     
@@ -126,14 +130,70 @@ class Observer:
             ),
             in_axes=(1, 0)
         )(pos_vec, jnp.array(delta_t_in_s))
-        
-    def scan_component(
+
+
+    def scan_atmosphere_fluctuation(
         self,
-        component_field: jnp.ndarray
+        atmosphere: type[Atmosphere],
+        component_name: str,
     ):
-        interpol = jsp.interpolate.RegularGridInterpolator(self.axes, component_field, fill_value=0., method='linear')
+        """Sample a component's 3D fluctuation field along the lines of sight.
+
+        Returns an array of shape ``(n_scans, n_los)`` in the component's
+        physical units, or zero if its field has not been generated. Samples
+        outside the grid are zero.
+        """
+        if component_name not in atmosphere.component_names:
+            raise KeyError(f"{component_name} is not a component")
+
+        component = atmosphere.components[component_name]
+        if not hasattr(component, "field"):
+            return jnp.zeros(self.los_obj.shape[:2])
+
+        interpol = jsp.interpolate.RegularGridInterpolator(
+            self.axes, component.field, fill_value=0., method='linear'
+        )
         shape = self.los_obj.shape
-        return interpol(self.los_obj[:,:,0:3].reshape(shape[0]*shape[1], 3)).reshape(shape[0], shape[1])
+        return interpol(self.los_obj[:, :, :3].reshape(shape[0] * shape[1], 3)).reshape(shape[0], shape[1])
+
+    def scan_atmosphere(
+        self,
+        atmosphere: type[Atmosphere],
+        component_name: str,
+    ):
+        """Sample the mean plus fluctuations along each line of sight.
+
+        The mean profile is evaluated at each point's altitude (m), including
+        for angled scans. Returns ``(n_scans, n_los)`` in the component's
+        physical units; samples outside the grid are zero.
+        """
+        if component_name not in atmosphere.component_names:
+            raise KeyError(f"{component_name} is not a component")
+
+        coords = self.los_obj[:, :, :3]
+        mean = jnp.interp(coords[:, :, 2], self.axes[2], atmosphere.component_mean[component_name]['f'])
+        fluctuation = self.scan_atmosphere_fluctuation(atmosphere, component_name)
+        lower = jnp.array([axis[0] for axis in self.axes])
+        upper = jnp.array([axis[-1] for axis in self.axes])
+        inside = jnp.all((coords >= lower) & (coords <= upper), axis=-1)
+        return jnp.where(inside, mean + fluctuation, 0.)
+
+    def observe_atmosphere(
+        self,
+        atmosphere: type[Atmosphere]
+    ):
+        """Return band-weighted atmospheric brightness temperatures (K_RJ).
+
+        Samples temperature (K), pressure (Pa), and water-vapor density
+        (kg m^-3) along each line of sight, then integrates emission over path
+        length (m). ``passband['nu']`` is in GHz; ``passband['g(nu)']`` contains
+        discrete weights that sum to one. Returns one value per scan.
+        """
+        pressure    = jnp.interp(self.los_obj[:,:,2], self.axes[2], atmosphere.atm_calibrator.pressure)
+        temperature = self.scan_atmosphere(atmosphere, 'temperature')
+        water_vapor = self.scan_atmosphere(atmosphere, 'water vapor')
         
+        I_atm = get_emission(temperature, pressure, water_vapor, jnp.diff(self.los_obj[:,:,3], axis=1, prepend=0), self.passband['nu'])
+        T_atm = intensitySI_to_Tb(I_atm[:,:,None], self.passband['nu'][None, None,:])[:,:,0]
         
-        
+        return jnp.sum(T_atm * self.passband['g(nu)'][None,:], axis=1)

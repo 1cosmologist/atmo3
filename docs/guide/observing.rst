@@ -20,8 +20,12 @@ Scan
 The boresight must lie in the central half of the box in both horizontal
 directions. ``obs.los_obj`` has shape ``(n_samples, n_los, 5)`` with
 ``[x, y, altitude, path length, inside-box mask]`` for every point of every line
-of sight, one per altitude cell. ``obs.scan_component(field)`` interpolates a
-``[Nx, Ny, Nz]`` field onto these points (zero outside the box).
+of sight, one per altitude cell. ``obs.scan_atmosphere(atmo, name)`` samples a
+component's fluctuation field and adds its mean profile at each point's
+altitude. ``obs.scan_atmosphere_fluctuation(atmo, name)`` samples only the
+fluctuations. Both return ``(n_samples, n_los)`` arrays; samples outside the
+box are zero. If a realization has not been generated, the fluctuation is
+zero and ``scan_atmosphere`` returns the mean profile along the scan.
 
 Wind
 ----
@@ -75,4 +79,7 @@ passed to :func:`~atmo3.emission.get_emission`, which integrates the radiative
 transfer with the millimetre-wave absorption models for oxygen and water vapour
 and returns the specific intensity at each frequency.
 :func:`~atmo3.emission_utils.intensitySI_to_Tb` converts it to a brightness
-temperature. See :doc:`../quickstart` for a complete example.
+temperature. ``obs.observe_atmosphere(atmo)`` computes a band-weighted
+brightness temperature in K_RJ for each sample. Its passband ``'nu'`` values
+are in GHz, and ``'g(nu)'`` contains discrete weights summing to one. See
+:doc:`../quickstart` for a complete example.

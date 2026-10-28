@@ -30,6 +30,9 @@ The standard
    * - ``'temperature_std'``
      - K
      - *Optional.* Horizontal RMS temperature fluctuation at each height
+   * - ``'specific_humidity_std'``
+     - kg kg\ :sup:`-1`
+     - *Optional.* Horizontal RMS specific-humidity fluctuation at each height
 
 :func:`atmo3.profiles.validate_profiles` checks a dictionary against this
 standard and is applied to every input.
@@ -47,7 +50,7 @@ atmosphere:
 
 The profiles are interpolated onto the altitude axis of the grid by
 :class:`~atmo3.calibration.AtmosphereCalibrator`: linearly for the temperature,
-humidity and temperature fluctuation, and in log space for the pressure.
+humidity and both fluctuation profiles, and in log space for the pressure.
 
 AFGL reference atmospheres
 --------------------------
@@ -96,9 +99,10 @@ The tabulated quantities are converted as follows:
   (moist) air, and is converted to a specific humidity with
   :func:`atmo3.atm_utils.volume_mixing_ratio_to_specific_humidity`.
 
-AFGL profiles carry no horizontal variability, so they have no
-``'temperature_std'``. Provide ``temperature_std`` to the atmosphere to set the
-temperature fluctuations (see :doc:`calibration`).
+AFGL profiles carry no horizontal variability, so they have no RMS fluctuation
+profiles. The calibrator uses 0.1 K for temperature and 0.1 % of the mean
+specific humidity for humidity unless site statistics set their scales
+(see :doc:`calibration`).
 
 The tables are looked up in the installed package, then in ``data/afgl_data`` of
 a source checkout. Pass ``table_dir`` to use another location.

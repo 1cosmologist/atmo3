@@ -32,8 +32,7 @@ What each statistic does
    The temperature fluctuation profile is multiplied by a constant so that its
    value at the lowest grid level equals the given standard deviation. If the
    profiles have no ``'temperature_std'``, the fluctuation is this value at all
-   heights. With neither, the temperature fluctuation is zero and a warning is
-   issued.
+   heights. With neither, the default is 0.1 K at all heights.
 
 ``pwv_mean``
    The specific-humidity profile is multiplied by a constant so that its
@@ -56,8 +55,11 @@ What each statistic does
 Water-vapour fluctuations
 -------------------------
 
-The specific-humidity fluctuation amplitude is set to 0.1 % of the calibrated
-mean profile. Its overall scale is fixed by ``pwv_std`` when that is provided.
+When the profiles include ``'specific_humidity_std'`` (kg kg\ :sup:`-1`), its
+height-dependent RMS amplitude is interpolated onto the grid. Otherwise the
+amplitude is 0.1 % of the calibrated mean specific-humidity profile. A supplied
+RMS profile is not rescaled by ``pwv_mean``; ``pwv_std`` rescales the generated
+water-vapour field when provided.
 
 Getting the statistics
 ----------------------
