@@ -187,3 +187,5 @@ examples/atmo_fields_UTC0.npz
 ._dbindex_/
 references/
 examples/old/
+.DS_Store
+
