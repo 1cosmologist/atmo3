@@ -6,7 +6,7 @@ import jax.numpy as jnp
 import numpy as np
 from datetime import datetime, timezone
 import matplotlib.pyplot as plt
-from matplotlib.colors import LogNorm
+from matplotlib.colors import LogNorm, CenteredNorm
 from pathlib import Path
 import atmo3 as a3
 
@@ -82,43 +82,48 @@ obs.compute_los_for_scan(timesamples, az, el)
 atmo_box.generate_realization(time_step=0)
 
 rho_wv_scan = obs.scan_atmosphere(atmo_box, component_name="water vapor")
-T_atm_scan = obs.scan_atmosphere(atmo_box, component_name="temperature")
+# T_atm_scan = obs.scan_atmosphere(atmo_box, component_name="temperature")
+
+drho_wv_scan = obs.scan_atmosphere_fluctuation(atmo_box, component_name="water vapor")
+dT_atm_scan = obs.scan_atmosphere_fluctuation(atmo_box, component_name="temperature")
 
 pwv_scan   = jnp.trapezoid(rho_wv_scan, x=obs.los_obj[:,:,3], axis=1)
 
-rho_wv_scan_np = np.asarray(rho_wv_scan)
-T_atm_scan_np = np.asarray(T_atm_scan)
+drho_wv_scan_np = np.asarray(drho_wv_scan)
+dT_atm_scan_np = np.asarray(dT_atm_scan)
 time_sample = np.arange(len(timesamples))
-los_sample = np.arange(rho_wv_scan_np.shape[1])
+los_sample = np.arange(drho_wv_scan_np.shape[1])
 
-fig, ax = plt.subplots()
+fig, ax = plt.subplots(dpi=200)
 image = ax.imshow(
-    rho_wv_scan_np.T,
+    drho_wv_scan_np.T,
     origin='lower',
     aspect='auto',
-    cmap='YlGnBu',
-    norm=LogNorm(),
+    cmap='coolwarm',
+    # norm=LogNorm(),
+    norm=CenteredNorm(halfrange=1e-5),
     extent=(-0.5, len(time_sample) - 0.5, -0.5, len(los_sample) - 0.5),
 )
-ax.set(xlabel='Time sample', ylabel='Line-of-sight sample', title='Water-vapor density')
-fig.colorbar(image, ax=ax, label=r'$\rho_{\mathrm{wv}}$ (kg m$^{-3}$)')
+ax.set(xlabel='Time sample', ylabel='Line-of-sight sample', title='Water-vapor density fluctuations')
+fig.colorbar(image, ax=ax, label=r'$\Delta\rho_{\mathrm{wv}}$ (kg m$^{-3}$)')
 fig.tight_layout()
-fig.savefig(Path(__file__).resolve().with_name('rho_wv_scan.png'))
+fig.savefig(Path(__file__).resolve().with_name('drho_wv_scan.png'))
 plt.close(fig)
 
-fig, ax = plt.subplots()
+fig, ax = plt.subplots(dpi=200)
 image = ax.imshow(
-    T_atm_scan_np.T,
+    dT_atm_scan_np.T,
     origin='lower',
     aspect='auto',
-    cmap='YlOrRd',
-    norm=LogNorm(),
+    cmap='coolwarm',
+    # norm=LogNorm(),
+    norm=CenteredNorm(halfrange=0.5),
     extent=(-0.5, len(time_sample) - 0.5, -0.5, len(los_sample) - 0.5),
 )
-ax.set(xlabel='Time sample', ylabel='Line-of-sight sample', title='Atmospheric temperature')
-fig.colorbar(image, ax=ax, label=r'$T_{\mathrm{atm}}$ (K)')
+ax.set(xlabel='Time sample', ylabel='Line-of-sight sample', title='Atmospheric temperature fluctuations')
+fig.colorbar(image, ax=ax, label=r'$\Delta T_{\mathrm{atm}}$ (K)')
 fig.tight_layout()
-fig.savefig(Path(__file__).resolve().with_name('T_atm_scan.png'))
+fig.savefig(Path(__file__).resolve().with_name('dT_atm_scan.png'))
 plt.close(fig)
 
 fig, ax = plt.subplots()

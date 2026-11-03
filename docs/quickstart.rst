@@ -33,7 +33,7 @@ epoch is UTC.
    import numpy as np
    from datetime import datetime, timezone
    import matplotlib.pyplot as plt
-   from matplotlib.colors import LogNorm
+   from matplotlib.colors import CenteredNorm
    from pathlib import Path
    import atmo3 as a3
 
@@ -116,66 +116,92 @@ degree per sample while elevation stays at 55 degrees. The observer uses the
 5. Generate and sample the atmosphere
 -------------------------------------
 
-After generating a realization, sample water-vapour density and temperature
-along each line of sight. Both scan arrays have shape
-``(n_scans, n_los)``. Integrating water-vapour density along the path gives
-PWV in kg m\ :sup:`-2`, numerically equivalent to mm of liquid water.
+After generating a realization, sample the total water-vapour density and the
+water-vapour and temperature fluctuations along each line of sight. The
+fluctuation-only scans exclude the mean profiles. Each scan array has shape
+``(n_scans, n_los)``. Integrating the **total** water-vapour density along
+the path gives PWV in kg m\ :sup:`-2`, numerically equivalent to mm of liquid
+water.
 
 .. code-block:: python
 
    atmo_box.generate_realization(time_step=0)
 
    rho_wv_scan = obs.scan_atmosphere(atmo_box, component_name='water vapor')
-   T_atm_scan = obs.scan_atmosphere(atmo_box, component_name='temperature')
+   drho_wv_scan = obs.scan_atmosphere_fluctuation(
+       atmo_box, component_name='water vapor'
+   )
+   dT_atm_scan = obs.scan_atmosphere_fluctuation(
+       atmo_box, component_name='temperature'
+   )
    pwv_scan = jnp.trapezoid(
        rho_wv_scan, x=obs.los_obj[:, :, 3], axis=1
    )
 
-6. Plot the line-of-sight scans
--------------------------------
+6. Plot the line-of-sight fluctuations
+--------------------------------------
 
-The scan arrays are transposed for ``imshow`` so time samples run along x and
-line-of-sight samples along y. Log normalization emphasizes the range of
-positive values. The script saves each figure next to ``test_box.py``.
+The fluctuation arrays are transposed for ``imshow`` so time samples run
+along x and line-of-sight samples along y. The ``coolwarm`` colour map and
+zero-centred normalization distinguish positive and negative fluctuations.
+The script saves each figure next to ``test_box.py``.
+
+First, plot the water-vapour density fluctuations using a colour scale centred
+on zero with a half-range of 10\ :sup:`-5` kg m\ :sup:`-3`:
 
 .. code-block:: python
 
-   rho_wv_scan_np = np.asarray(rho_wv_scan)
-   T_atm_scan_np = np.asarray(T_atm_scan)
+   drho_wv_scan_np = np.asarray(drho_wv_scan)
+   dT_atm_scan_np = np.asarray(dT_atm_scan)
    time_sample = np.arange(len(timesamples))
-   los_sample = np.arange(rho_wv_scan_np.shape[1])
+   los_sample = np.arange(drho_wv_scan_np.shape[1])
    extent = (-0.5, len(time_sample) - 0.5, -0.5, len(los_sample) - 0.5)
 
-   fig, ax = plt.subplots()
+   fig, ax = plt.subplots(dpi=200)
    image = ax.imshow(
-       rho_wv_scan_np.T, origin='lower', aspect='auto',
-       cmap='YlGnBu', norm=LogNorm(), extent=extent,
+       drho_wv_scan_np.T, origin='lower', aspect='auto',
+       cmap='coolwarm', norm=CenteredNorm(halfrange=1e-5), extent=extent,
    )
    ax.set(xlabel='Time sample', ylabel='Line-of-sight sample',
-          title='Water-vapor density')
-   fig.colorbar(image, ax=ax, label=r'$\rho_{\mathrm{wv}}$ (kg m$^{-3}$)')
+          title='Water-vapor density fluctuations')
+   fig.colorbar(image, ax=ax, label=r'$\Delta\rho_{\mathrm{wv}}$ (kg m$^{-3}$)')
    fig.tight_layout()
-   fig.savefig(Path(__file__).resolve().with_name('rho_wv_scan.png'))
+   fig.savefig(Path(__file__).resolve().with_name('drho_wv_scan.png'))
    plt.close(fig)
 
-   fig, ax = plt.subplots()
+.. figure:: images/drho_wv_scan.png
+   :alt: Water-vapour density fluctuations by time and line-of-sight sample.
+   :width: 80%
+
+   Water-vapour density fluctuations in kg m\ :sup:`-3`; blue and red
+   indicate negative and positive fluctuations, respectively.
+
+Next, plot the temperature fluctuations using a half-range of 0.5 K:
+
+.. code-block:: python
+
+   fig, ax = plt.subplots(dpi=200)
    image = ax.imshow(
-       T_atm_scan_np.T, origin='lower', aspect='auto',
-       cmap='YlOrRd', norm=LogNorm(), extent=extent,
+       dT_atm_scan_np.T, origin='lower', aspect='auto',
+       cmap='coolwarm', norm=CenteredNorm(halfrange=0.5), extent=extent,
    )
    ax.set(xlabel='Time sample', ylabel='Line-of-sight sample',
-          title='Atmospheric temperature')
-   fig.colorbar(image, ax=ax, label=r'$T_{\mathrm{atm}}$ (K)')
+          title='Atmospheric temperature fluctuations')
+   fig.colorbar(image, ax=ax, label=r'$\Delta T_{\mathrm{atm}}$ (K)')
    fig.tight_layout()
-   fig.savefig(Path(__file__).resolve().with_name('T_atm_scan.png'))
+   fig.savefig(Path(__file__).resolve().with_name('dT_atm_scan.png'))
    plt.close(fig)
+
+.. figure:: images/dT_atm_scan.png
+   :alt: Atmospheric temperature fluctuations by time and line-of-sight sample.
+   :width: 80%
+
+   Atmospheric temperature fluctuations in K, centred on zero.
 
 7. Plot PWV and observed brightness temperature
 -----------------------------------------------
 
-PWV is plotted once per scan sample. ``observe_atmosphere`` computes the
-passband-weighted brightness temperature, returned in Rayleigh-Jeans kelvin
-(K\ :sub:`RJ`).
+Plot the total line-of-sight PWV once per scan sample:
 
 .. code-block:: python
 
@@ -187,6 +213,18 @@ passband-weighted brightness temperature, returned in Rayleigh-Jeans kelvin
    fig.savefig(Path(__file__).resolve().with_name('pwv_scan.png'))
    plt.close(fig)
 
+.. figure:: images/pwv_scan.png
+   :alt: Precipitable water vapour versus time sample.
+   :width: 80%
+
+   Total water-vapour column along each scan, expressed as liquid-water
+   equivalent depth in mm.
+
+``observe_atmosphere`` computes the passband-weighted brightness temperature,
+returned in Rayleigh-Jeans kelvin (K\ :sub:`RJ`):
+
+.. code-block:: python
+
    T_b_obs = obs.observe_atmosphere(atmo_box)
    fig, ax = plt.subplots()
    ax.plot(time_sample, np.asarray(T_b_obs))
@@ -196,39 +234,8 @@ passband-weighted brightness temperature, returned in Rayleigh-Jeans kelvin
    fig.savefig(Path(__file__).resolve().with_name('T_b_obs.png'))
    plt.close(fig)
 
-The documentation displays the corresponding saved plots below:
+.. figure:: images/T_b_obs.png
+   :alt: Observed brightness temperature in K_RJ versus time sample.
+   :width: 80%
 
-.. grid:: 1 2 2 2
-   :gutter: 3
-
-   .. grid-item::
-
-      .. figure:: images/rho_wv_scan.png
-         :alt: Log-normalized water-vapour density along the line of sight over scan time.
-         :width: 100%
-
-         Water-vapour density along the scan.
-
-   .. grid-item::
-
-      .. figure:: images/T_atm_scan.png
-         :alt: Log-normalized atmospheric temperature along the line of sight over scan time.
-         :width: 100%
-
-         Atmospheric temperature along the scan.
-
-   .. grid-item::
-
-      .. figure:: images/pwv_scan.png
-         :alt: Precipitable water vapour versus time sample.
-         :width: 100%
-
-         PWV integrated along each scan.
-
-   .. grid-item::
-
-      .. figure:: images/T_b_obs.png
-         :alt: Observed brightness temperature in K_RJ versus time sample.
-         :width: 100%
-
-         Observed brightness temperature at 150 GHz.
+   Observed brightness temperature at 150 GHz for each scan sample.
