@@ -66,8 +66,13 @@ class Observer:
         if not isinstance(passband, dict):
             raise ValueError("Passband required! Format: dict{'freq_GHz', 'g_nu'}.")
 
+        # Assume that passband is in brightness temperature units
         self.passband = passband
-        ### TODO: Normalization of the passband is TBD. Assume it is normalized and in units of K_RJ
+        
+        self.delta_band = False
+        if len(self.passband['nu']) == 1:
+            self.delta_band = True
+        
         
         if not isinstance(fwhm_arcmin, float):
             raise ValueError("FWHM in arcmin required!")        
@@ -194,6 +199,14 @@ class Observer:
         water_vapor = self.scan_atmosphere(atmosphere, 'water vapor')
         
         I_atm = get_emission(temperature, pressure, water_vapor, jnp.diff(self.los_obj[:,:,3], axis=1, prepend=0), self.passband['nu'])
-        T_atm = intensitySI_to_Tb(I_atm[:,:,None], self.passband['nu'][None, None,:])[:,:,0]
         
-        return jnp.sum(T_atm * self.passband['g(nu)'][None,:], axis=1)
+        T_atm = intensitySI_to_Tb(I_atm[:,:,None], self.passband['nu'][None, None,:])[:,:,0]
+        # T_atm = intensitySI_to_Tb(I_atm[:,:], self.passband['nu'][None, :])
+        print(jnp.all(jnp.isfinite(T_atm)))
+        
+        del I_atm
+        
+        if self.delta_band:
+            return T_atm[:,0]
+        
+        return jnp.trapezoid(T_atm * self.passband['g(nu)'][None,:], x=self.passband['nu'][None,:], axis=1)

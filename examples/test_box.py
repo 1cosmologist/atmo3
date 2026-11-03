@@ -6,6 +6,8 @@ import jax.numpy as jnp
 import numpy as np
 from datetime import datetime, timezone
 import matplotlib.pyplot as plt
+from matplotlib.colors import LogNorm
+from pathlib import Path
 import atmo3 as a3
 
 # Grid dimensions [Nx, Ny, Nz] and physical box size [Lx, Ly, Lz] in metres.
@@ -50,14 +52,14 @@ atmo_box = a3.Atmosphere(
     site_altitude=site_altitude,
     site_coordinates=site_coordinates,
     time_utc=time_utc,
-    profile='midlatitude_winter',
+    profiles='midlatitude_winter',
     pwv_mean=1.,        # mm
     pwv_std=0.01,       # mm 
     temperature_std=0.2, # K
 )
 
 print(f"Creating power spectrum for specific humidity normalized to 1.")
-k_array     = np.arange(nside_grid) * jnp.min(atmo_box.grid_wsp.dk)
+k_array     = np.arange(max(nside_grid)) * jnp.min(atmo_box.grid_wsp.dk)
 # Based on the Kolmogorov spectrum, we can define a power spectrum based on values from Morris et al. (2025) (arxiv:2410.13064)
 k0          = 2*np.pi / injection_scale_in_m
 pofk_array  = ( k0**2. + k_array**2 )**-(11/6)
@@ -74,9 +76,66 @@ obs = a3.Observer(
     passband = passband, 
     fwhm_arcmin = fwhm
 )
+
 obs.compute_los_for_scan(timesamples, az, el)
 
 atmo_box.generate_realization(time_step=0)
 
+rho_wv_scan = obs.scan_atmosphere(atmo_box, component_name="water vapor")
+T_atm_scan = obs.scan_atmosphere(atmo_box, component_name="temperature")
+
+pwv_scan   = jnp.trapezoid(rho_wv_scan, x=obs.los_obj[:,:,3], axis=1)
+
+rho_wv_scan_np = np.asarray(rho_wv_scan)
+T_atm_scan_np = np.asarray(T_atm_scan)
+time_sample = np.arange(len(timesamples))
+los_sample = np.arange(rho_wv_scan_np.shape[1])
+
+fig, ax = plt.subplots()
+image = ax.imshow(
+    rho_wv_scan_np.T,
+    origin='lower',
+    aspect='auto',
+    cmap='YlGnBu',
+    norm=LogNorm(),
+    extent=(-0.5, len(time_sample) - 0.5, -0.5, len(los_sample) - 0.5),
+)
+ax.set(xlabel='Time sample', ylabel='Line-of-sight sample', title='Water-vapor density')
+fig.colorbar(image, ax=ax, label=r'$\rho_{\mathrm{wv}}$ (kg m$^{-3}$)')
+fig.tight_layout()
+fig.savefig(Path(__file__).resolve().with_name('rho_wv_scan.png'))
+plt.close(fig)
+
+fig, ax = plt.subplots()
+image = ax.imshow(
+    T_atm_scan_np.T,
+    origin='lower',
+    aspect='auto',
+    cmap='YlOrRd',
+    norm=LogNorm(),
+    extent=(-0.5, len(time_sample) - 0.5, -0.5, len(los_sample) - 0.5),
+)
+ax.set(xlabel='Time sample', ylabel='Line-of-sight sample', title='Atmospheric temperature')
+fig.colorbar(image, ax=ax, label=r'$T_{\mathrm{atm}}$ (K)')
+fig.tight_layout()
+fig.savefig(Path(__file__).resolve().with_name('T_atm_scan.png'))
+plt.close(fig)
+
+fig, ax = plt.subplots()
+ax.plot(time_sample, np.asarray(pwv_scan))
+ax.set(xlabel='Time sample', ylabel='PWV (mm)', title='Precipitable water vapor along scans')
+# ax.grid(True)
+fig.tight_layout()
+fig.savefig(Path(__file__).resolve().with_name('pwv_scan.png'))
+plt.close(fig)
+
+T_b_obs = obs.observe_atmosphere(atmo_box)
 
 
+fig, ax = plt.subplots()
+ax.plot(time_sample, np.asarray(T_b_obs))
+ax.set(xlabel='Time sample', ylabel=r'$T_b$ (K_RJ)', title='Observed brightness temperature')
+# ax.grid(True)
+fig.tight_layout()
+fig.savefig(Path(__file__).resolve().with_name('T_b_obs.png'))
+plt.close(fig)

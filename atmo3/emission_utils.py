@@ -35,10 +35,16 @@ def B_nu_T(nu_in_GHz, T_bb):
     """
 
     nu_in_Hz = nu_in_GHz * constants.giga
-    x = constants.h * nu_in_Hz / constants.k_B / T_bb
-    prefactor = 2. * constants.h * nu_in_Hz**3. / constants.c**2.
+    # x = constants.h * nu_in_Hz / constants.k_B / T_bb
+    # prefactor = 2. * constants.h * nu_in_Hz**3. / constants.c**2.
+    
+    x = constants.h * nu_in_Hz / (constants.k_B * T_bb)
+    rj = 2. * constants.k_B * T_bb * (nu_in_Hz / constants.c)**2
+    return rj * x / jnp.expm1(x)
 
-    return prefactor / (jnp.exp(x) - 1.)
+    # return prefactor / (jnp.exp(x) - 1.)
 
 def intensitySI_to_Tb(I_nu, freq_in_GHz):
-    return constants.c**2 / 2. / constants.k_B / (freq_in_GHz * constants.giga)**2. * I_nu
+    # return constants.c**2 / 2. / constants.k_B / (freq_in_GHz * constants.giga)**2. * I_nu
+    nu_hz = freq_in_GHz * constants.giga
+    return (((constants.c / nu_hz)**2.) / (2. * constants.k_B)) * I_nu

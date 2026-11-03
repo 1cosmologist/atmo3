@@ -81,8 +81,10 @@ class Box:
         del delta_k ; gc.collect()
         
         # print(jnp.std(delta_r))
-        self.field = delta_r / jnp.std(delta_r)  # Normalize to unit variance
-        del delta_r ; gc.collect()
+        std_delta  = jnp.std(delta_r)
+        self.field = jnp.where(delta_r / std_delta >= -1, delta_r/std_delta, -1)  # Normalize to unit variance and avoid unphysical values.
+        
+        del delta_r, std_delta ; gc.collect()
         
         # print(jnp.all(jnp.isfinite(self.zscaling['f'])))
         self.field = self._rescale_field(self.field)
