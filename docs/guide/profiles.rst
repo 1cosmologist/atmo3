@@ -126,6 +126,25 @@ The geopotential file defines the pressure levels, the horizontal grid and the
 height of each level. The other files must share them. ``profiles()`` includes
 the horizontal standard deviation of the temperature as ``'temperature_std'``.
 
+Alternatively, pass the in-memory result of ``fetch_era5_data``. Include
+geopotential and the variables needed by the profile methods:
+
+.. code-block:: python
+
+   data = a3.fetch_era5_data(
+       "cerro_toco", "2023-09-16",
+       ["geopotential", "temperature", "specific_humidity",
+        "v_component_of_wind", "u_component_of_wind"],
+   )
+   era5 = a3.ERA5Handler(time_utc=datetime(2023, 9, 16, tzinfo=timezone.utc),
+                         site_lonlat=[-67.78, -22.95], era5_data=data)
+   profiles = era5.profiles()
+   northwind, eastwind = era5.wind_profiles()
+
+File arguments can still be supplied to override individual in-memory
+variables. Missing or duplicate pressure-level variables are reported as
+errors.
+
 Your own measurements
 ---------------------
 

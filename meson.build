@@ -49,6 +49,7 @@ py_sources = [
     'atmo3/emission_utils.py',
     'atmo3/emission.py',
     'atmo3/era5_utils.py',
+    'atmo3/era5_data_fetcher.py',
     'atmo3/grid_utils.py',
     'atmo3/multihost_fft.py',
     'atmo3/obs_utils.py',

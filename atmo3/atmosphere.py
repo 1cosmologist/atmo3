@@ -76,6 +76,14 @@ class Atmosphere:
 
         Site statistics that are not provided are not calibrated
         against (see :class:`calibration.AtmosphereCalibrator`).
+    cloud_profiles : dict, optional
+        Cloud profile dictionary with 1-D arrays on a common altitude
+        axis: ``'z'`` (altitude above sea level, m),
+        ``'cloud_cover_ratio'`` (dimensionless), and at least one of
+        ``'specific_ice_water'`` or ``'specific_liquid_water'``
+        (kg kg⁻¹). Unlike ``profiles``, this argument does not accept a
+        profile name string. Provided profiles are interpolated onto the
+        simulation altitude grid.
 
     Attributes
     ----------
@@ -119,7 +127,8 @@ class Atmosphere:
                  temperature_mean: float = None,
                  temperature_std: float = None,
                  pwv_mean: float = None,
-                 pwv_std: float = None
+                 pwv_std: float = None,
+                 cloud_profiles: dict = None
         ) -> None:
         self.N                = jnp.array(nside_grid)
         self.Lbox             = jnp.array(box_length_in_m)
@@ -144,11 +153,14 @@ class Atmosphere:
                                                 temperature_std=temperature_std,
                                                 pwv_mean=pwv_mean,
                                                 pwv_std=pwv_std,
+                                                cloud_profiles=cloud_profiles,
                                                 )
         
-        self.component_names  = []
-        self.components       = {}
-        self.component_mean   = {}
+        self.component_names         = []
+        self.cloud_component_names = []
+        self.components              = {}
+        self.component_mean          = {}
+        self.derived_cubes           = {}
 
     def _add_component(
         self,
@@ -281,7 +293,7 @@ class Atmosphere:
         
     def add_cloud(self,
                 power_spec: dict, 
-                seed: int = 424242, 
+                seed: int = 246803, 
                 ) -> None :
         """
         Add turbulent cloud components (ice and liquid water) to the atmosphere.
@@ -315,7 +327,7 @@ class Atmosphere:
 
         # Extract base fluctuations and 1D profiles from calibrator
         fluctuations_cloud = self.components['cloud fluctuations'].field
-        cc_interp = self.atm_calibrator.cc_profile
+        cc_interp = self.atm_calibrator.cloud_cover_profile
         
         nz = fluctuations_cloud.shape[2]
 
@@ -334,15 +346,15 @@ class Atmosphere:
         self.derived_cubes['cloud'] = cloud_mask
 
         # Process Ice Cube
-        if hasattr(self.atm_calibrator, 'ciwc_profile') and self.atm_calibrator.ciwc_profile is not None:
-            ciwc_interp = self.atm_calibrator.ciwc_profile
-            ice_ratio_1d = jnp.where(cc_interp > 0.0, ciwc_interp / cc_interp, 0.0)
+        if self.atm_calibrator.ice_water_profile is not None:
+            ice_interp = self.atm_calibrator.ice_water_profile
+            ice_ratio_1d = jnp.where(cc_interp > 0.0, ice_interp / cc_interp, 0.0)
             self.derived_cubes['ice water'] = cloud_mask * ice_ratio_1d.reshape(1, 1, -1)
 
         # Process Liquid Cube
-        if hasattr(self.atm_calibrator, 'clwc_profile') and self.atm_calibrator.clwc_profile is not None:
-            clwc_interp = self.atm_calibrator.clwc_profile
-            liquid_ratio_1d = jnp.where(cc_interp > 0.0, clwc_interp / cc_interp, 0.0)
+        if self.atm_calibrator.liquid_water_profile is not None:
+            liquid_interp = self.atm_calibrator.liquid_water_profile
+            liquid_ratio_1d = jnp.where(cc_interp > 0.0, liquid_interp / cc_interp, 0.0)
             self.derived_cubes['liquid water'] = cloud_mask * liquid_ratio_1d.reshape(1, 1, -1)
 
 

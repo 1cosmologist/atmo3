@@ -27,6 +27,10 @@ injection_scale_in_m = 500.0  # Injection scale in meters
 site_altitude = 5190. # m
 site_coordinates = [-67.783, -22.95]  # [longitude, latitude] in degrees
 
+# GroundBIRD/CosmoLiDAR site in Observatorio Astronómico del Teide. 
+# site_altitude = 2366. # m
+# site_coordinates = [-16.51,   28.30]  # [longitude, latitude] in degrees
+
 # Simulation epoch in UTC.  ERA5 profiles and APEX weather data are
 # selected from a ±30-minute window centred on this timestamp.
 time_utc = datetime(2025, 9, 16, 0, 0, tzinfo=timezone.utc)

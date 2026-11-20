@@ -15,6 +15,13 @@ figures:
 The example uses a ``512 x 512 x 256`` grid, so it can require substantial
 memory and compute time. Reduce ``nside_grid`` for a smaller test.
 
+The automated workflow validation uses a ``256 x 256 x 128`` grid. With
+pytest installed, run it on the CPU with:
+
+.. code-block:: console
+
+   JAX_PLATFORMS=cpu python -m pytest -q tests/test_box_workflow.py
+
 1. Set up Python and choose the simulation domain
 -------------------------------------------------
 

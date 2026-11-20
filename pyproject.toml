@@ -12,7 +12,9 @@ dependencies = [
     "numpy",
     "xarray",
     "jax",
+    "era5-downloader"
 ]
+
 license = {file = 'LICENSE'}
 authors = [
   {name = 'Shamik Ghosh', email = 'shamik@lbl.gov'},
@@ -20,3 +22,6 @@ authors = [
   {name = 'Julien Tang', email = 'JulienTang@lbl.gov'},
   {name = 'Timothée Tollet', email = 'tollet@apc.in2p3.fr'},
 ]
+
+[project.optional-dependencies]
+era5 = ["era5-downloader>=0.1.9"]

@@ -28,7 +28,8 @@ class AtmosphereCalibrator:
             temperature_mean: float = None,
             temperature_std: float = None,
             pwv_mean: float = None,
-            pwv_std: float = None
+            pwv_std: float = None,
+            cloud_profiles: dict = None
     ) -> None :
         """
         Build the (optionally recalibrated) atmospheric profiles.
@@ -63,9 +64,23 @@ class AtmosphereCalibrator:
             Standard deviation of the PWV at the site (mm).  If given,
             :meth:`calibrate_pwv` rescales water-vapour fluctuation
             fields to it; otherwise that method does nothing.
+        cloud_profiles : dict, optional
+            Cloud-profile dictionary, separate from ``profiles``. It
+            must contain ``'z'`` (altitude above sea level, m),
+            ``'cloud_cover_ratio'`` (dimensionless), and at least one of
+            ``'specific_ice_water'`` or ``'specific_liquid_water'``
+            (kg kg⁻¹). Provided profiles are interpolated onto ``z_grid``.
 
         Attributes
         ----------
+        cloud_cover_profile : jnp.ndarray or None
+            Cloud-cover ratio interpolated onto ``z_grid``.
+        ice_water_profile : jnp.ndarray or None
+            Specific ice-water content interpolated onto ``z_grid``, if
+            supplied.
+        liquid_water_profile : jnp.ndarray or None
+            Specific liquid-water content interpolated onto ``z_grid``,
+            if supplied.
         pressure : jnp.ndarray
             Pressure profile on ``z_grid`` (Pa).
         temperature_profile : jnp.ndarray
@@ -86,8 +101,40 @@ class AtmosphereCalibrator:
         temperature_mean, temperature_std, pwv_mean, pwv_std : float or None
             The site statistics as provided.
         """
+        if cloud_profiles is not None and not isinstance(cloud_profiles, dict):
+            raise TypeError("cloud_profiles must be a dict or None.")
+        if cloud_profiles is not None:
+            required_cloud_keys = {'z', 'cloud_cover_ratio'}
+            missing_cloud_keys = required_cloud_keys.difference(cloud_profiles)
+            if missing_cloud_keys:
+                raise ValueError(f"cloud_profiles is missing required keys: {sorted(missing_cloud_keys)}.")
+            if not {'specific_ice_water', 'specific_liquid_water'}.intersection(cloud_profiles):
+                raise ValueError(
+                    "cloud_profiles must contain 'specific_ice_water' and/or 'specific_liquid_water'."
+                )
+
         profiles = validate_profiles(profiles)
         z_grid = jnp.asarray(z_grid)
+        
+        self.cloud_cover_profile = None
+        self.ice_water_profile = None
+        self.liquid_water_profile = None
+        if cloud_profiles is not None:
+            cloud_z = jnp.asarray(cloud_profiles['z'])
+            self.cloud_cover_profile = jnp.interp(
+                z_grid, cloud_z, jnp.asarray(cloud_profiles['cloud_cover_ratio']),
+                left='extrapolate', right='extrapolate'
+            )
+            if 'specific_ice_water' in cloud_profiles:
+                self.ice_water_profile = jnp.interp(
+                    z_grid, cloud_z, jnp.asarray(cloud_profiles['specific_ice_water']),
+                    left='extrapolate', right='extrapolate'
+                )
+            if 'specific_liquid_water' in cloud_profiles:
+                self.liquid_water_profile = jnp.interp(
+                    z_grid, cloud_z, jnp.asarray(cloud_profiles['specific_liquid_water']),
+                    left='extrapolate', right='extrapolate'
+                )
 
         for name, value, positive in (('temperature_mean', temperature_mean, True),
                                       ('temperature_std', temperature_std, False),

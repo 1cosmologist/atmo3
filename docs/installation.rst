@@ -20,6 +20,8 @@ Dependencies
 
 ``jax`` and ``numpy`` are the core dependencies. ``xarray`` (with ``scipy``) is
 needed to read ERA5 files through :class:`atmo3.era5_utils.ERA5Handler`.
+Install ``atmo3[era5]`` to download ERA5 data with
+:func:`atmo3.era5_data_fetcher.fetch_era5_data`.
 
 .. note::
 

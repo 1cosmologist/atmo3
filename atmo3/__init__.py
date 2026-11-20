@@ -5,6 +5,7 @@ from .cube import *
 from .emission import *
 from .emission_utils import *
 from .era5_utils import *
+from .era5_data_fetcher import *
 from .grid_utils import *
 from .multihost_fft import *
 from .observation import *

@@ -21,6 +21,26 @@ the profiles and the fluctuations. Each statistic is independent and optional:
 The same keyword arguments are accepted by
 :class:`~atmo3.calibration.AtmosphereCalibrator`, which performs the work.
 
+Cloud profiles
+--------------
+
+Pass cloud data to :class:`~atmo3.atmosphere.Atmosphere` with
+``cloud_profiles`` (or pass it directly to
+:class:`~atmo3.calibration.AtmosphereCalibrator`). It must be a dictionary,
+not a profile name string. The dictionary contains 1-D arrays on a common
+altitude axis and must include ``'cloud_cover_ratio'`` and at least one of the
+two water-content profiles:
+
+* ``'z'`` - altitude above sea level (m)
+* ``'cloud_cover_ratio'`` - dimensionless cloud-cover ratio
+* ``'specific_ice_water'`` - specific ice-water content (kg kg\ :sup:`-1`)
+* ``'specific_liquid_water'`` - specific liquid-water content (kg kg\ :sup:`-1`)
+
+Provided profiles are interpolated onto the simulation altitude grid. The
+corresponding calibrator attributes are ``cloud_cover_profile``,
+``ice_water_profile`` and ``liquid_water_profile``; each is ``None`` if that
+profile was not provided.
+
 What each statistic does
 ------------------------
 
