@@ -30,6 +30,7 @@ _DEFAULT_VARIABLES = (
     "v_component_of_wind",
 )
 
+# ERA5 data is fetched from Google cloud public data storage: https://console.cloud.google.com/storage/browser/gcp-public-data-arco-era5/raw/date-variable-pressure_level/
 
 def fetch_era5_data(region, date, variables=None, output_path=None):
     """Fetch ERA5 data for one UTC day.

@@ -1,6 +1,6 @@
 project(
     'atmo3',
-    version: '0.0.1.b0',
+    version: files('atmo3/VERSION'),
     meson_version: '>=0.63.0',
     default_options: [
       # The default can yield broken results.
@@ -63,6 +63,8 @@ py_sources = [
 py3.install_sources(py_sources,
   subdir: 'atmo3',
 )
+
+py3.install_sources('atmo3/VERSION', subdir: 'atmo3')
 
 # AFGL (1986) reference atmospheres used by atmo3/profiles.py
 afgl_tables = [

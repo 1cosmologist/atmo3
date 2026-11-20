@@ -1,3 +1,7 @@
+from pathlib import Path as _Path
+
+__version__ = _Path(__file__).with_name('VERSION').read_text(encoding='utf-8').strip()
+
 from .atmosphere import *
 from .atm_utils import *
 from .constants import *

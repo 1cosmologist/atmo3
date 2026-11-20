@@ -14,7 +14,8 @@ with open(os.path.join(os.path.dirname(__file__), '..', 'pyproject.toml'), 'rb')
 project = 'atmo3'
 author = ', '.join(a['name'] for a in _project['authors'])
 copyright = f'2025, {author}'
-release = _project['version']
+with open(os.path.join(os.path.dirname(__file__), '..', 'atmo3', 'VERSION'), encoding='utf-8') as f:
+    release = f.read().strip()
 version = release
 
 extensions = [

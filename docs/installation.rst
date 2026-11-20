@@ -5,6 +5,9 @@ atmo3 requires Python 3.12 or newer. It is built with
 `meson-python <https://mesonbuild.com/meson-python/>`_, which is installed
 automatically as a build dependency.
 
+The package version is maintained in ``atmo3/VERSION`` and is available at
+runtime as ``atmo3.__version__``.
+
 .. code-block:: bash
 
    git clone git@github.com:1cosmologist/atmo3.git
